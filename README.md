@@ -70,5 +70,6 @@ Thanks to [Cyril Rohr](https://github.com/crohr) and [Ken Robertson](https://git
 * [rpm-s3](https://github.com/crohr/rpm-s3)
 * [deb-s3](https://github.com/krobertson/deb-s3)
 
-Unfortunately, we needed a solution that is completely decoupled from CI pipeline, and the mentioned tools only support package push mode, when have to use a tool to actually
-push packages to s3, insted of native s3 clients.
+Unfortunately, we needed a solution that is completely decoupled from CI pipeline,
+and the mentioned tools only support package push mode, when you have to use a
+tool to actually push packages to s3, insted of native s3 clients.
