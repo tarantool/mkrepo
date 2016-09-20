@@ -383,7 +383,6 @@ def update_repo(storage, sign):
         release['Origin'] = 'Repo generator'
         release['Label'] = 'Repo generator'
         release['Codename'] = dist
-        release['Version'] = '15.04'
         release['Date'] = creation_date
         release['Architectures'] = ' '.join(architectures[dist])
         release['Components'] = ' '.join(components[dist])
