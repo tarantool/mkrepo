@@ -1,0 +1,86 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"$if(lang)$ lang="$lang$" xml:lang="$lang$"$endif$$if(dir)$ dir="$dir$"$endif$>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <meta http-equiv="Content-Style-Type" content="text/css" />
+  <meta name="generator" content="pandoc" />
+$for(author-meta)$
+  <meta name="author" content="$author-meta$" />
+$endfor$
+$if(date-meta)$
+  <meta name="date" content="$date-meta$" />
+$endif$
+$if(keywords)$
+  <meta name="keywords" content="$for(keywords)$$keywords$$sep$, $endfor$" />
+$endif$
+  <title>$if(title-prefix)$$title-prefix$ – $endif$$pagetitle$</title>
+  <style type="text/css">code{white-space: pre;}</style>
+$if(quotes)$
+  <style type="text/css">q { quotes: "“" "”" "‘" "’"; }</style>
+$endif$
+$if(highlighting-css)$
+  <style type="text/css">
+$highlighting-css$
+  </style>
+$endif$
+  $for(css)$
+  <link rel="stylesheet" href="$css$" type="text/css" />
+$endfor$
+$if(math)$
+  $math$
+$endif$
+$for(header-includes)$
+  $header-includes$
+$endfor$
+</head>
+<body>
+  <div style="color: #222;">
+
+  <div style="margin-bottom: 4em;">
+  <div class="container" style="font-feature-settings: 'lnum' 1;">
+    <section class="header" style="text-align: center">
+      <h2 class="title">⬢<a href="https://github.com/tarantool/mkrepo">mkrepo</a></h2>
+      <h3 class="title">Automating package lifecycle on s3</h3>
+    </section>
+  </div>
+  <div style="background-color: #56a9f6; text-align:center; padding-top: 2em; padding-bottom: 2em; margin-top: 2em; margin-bottom: 2em;">
+      <img src="static/box.svg" style="align:center">
+  </div>
+  <div class="container">
+    <section class="header" style="text-align: center">
+      <h3 class="title">by <a href="https://twitter.com/racktear">🐦 racktear</a></h3>
+    </section>
+  </div>
+  </div>
+
+<div class="container">
+$for(include-before)$
+$include-before$
+$endfor$
+$if(title)$
+<div id="$idprefix$header">
+<h1 class="title">$title$</h1>
+$if(subtitle)$
+<h1 class="subtitle">$subtitle$</h1>
+$endif$
+$for(author)$
+<h2 class="author">$author$</h2>
+$endfor$
+$if(date)$
+<h3 class="date">$date$</h3>
+$endif$
+</div>
+$endif$
+$if(toc)$
+<div id="$idprefix$TOC">
+$toc$
+</div>
+$endif$
+$body$
+$for(include-after)$
+$include-after$
+$endfor$
+</div>
+</div>
+</body>
+</html>

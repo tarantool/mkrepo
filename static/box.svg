@@ -1,0 +1,20 @@
+<svg width="110px" height="126px" viewBox="375 118 110 126" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <!-- Generator: Sketch 40.1 (33804) - http://www.bohemiancoding.com/sketch -->
+    <desc>Created with Sketch.</desc>
+    <defs>
+        <filter x="-50%" y="-50%" width="200%" height="200%" filterUnits="objectBoundingBox" id="filter-1">
+            <feOffset dx="0" dy="2" in="SourceAlpha" result="shadowOffsetOuter1"></feOffset>
+            <feGaussianBlur stdDeviation="2" in="shadowOffsetOuter1" result="shadowBlurOuter1"></feGaussianBlur>
+            <feColorMatrix values="0 0 0 0 0.214737457   0 0 0 0 0.176719294   0 0 0 0 0.109859765  0 0 0 0.5 0" type="matrix" in="shadowBlurOuter1" result="shadowMatrixOuter1"></feColorMatrix>
+            <feMerge>
+                <feMergeNode in="shadowMatrixOuter1"></feMergeNode>
+                <feMergeNode in="SourceGraphic"></feMergeNode>
+            </feMerge>
+        </filter>
+    </defs>
+    <g id="Group" filter="url(#filter-1)" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd" transform="translate(380.000000, 121.000000)">
+        <polygon id="Path" stroke="#000000" fill="#A58855" points="0 29 50 1.42108547e-14 100 29 100 86 50 115 0 86"></polygon>
+        <polyline id="Path-2" stroke="#000000" points="0 29.2631362 50 57.7400055 100 29.2631362"></polyline>
+        <path d="M50,57.7400055 L50,115.600006" id="Path-3" stroke="#000000"></path>
+    </g>
+</svg>
