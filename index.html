@@ -1,0 +1,115 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <meta http-equiv="Content-Style-Type" content="text/css" />
+  <meta name="generator" content="pandoc" />
+  <title>mkrepo – </title>
+  <style type="text/css">code{white-space: pre;}</style>
+  <style type="text/css">
+div.sourceCode { overflow-x: auto; }
+table.sourceCode, tr.sourceCode, td.lineNumbers, td.sourceCode {
+  margin: 0; padding: 0; vertical-align: baseline; border: none; }
+table.sourceCode { width: 100%; line-height: 100%; }
+td.lineNumbers { text-align: right; padding-right: 4px; padding-left: 4px; color: #aaaaaa; border-right: 1px solid #aaaaaa; }
+td.sourceCode { padding-left: 5px; }
+code > span.kw { color: #007020; font-weight: bold; } /* Keyword */
+code > span.dt { color: #902000; } /* DataType */
+code > span.dv { color: #40a070; } /* DecVal */
+code > span.bn { color: #40a070; } /* BaseN */
+code > span.fl { color: #40a070; } /* Float */
+code > span.ch { color: #4070a0; } /* Char */
+code > span.st { color: #4070a0; } /* String */
+code > span.co { color: #60a0b0; font-style: italic; } /* Comment */
+code > span.ot { color: #007020; } /* Other */
+code > span.al { color: #ff0000; font-weight: bold; } /* Alert */
+code > span.fu { color: #06287e; } /* Function */
+code > span.er { color: #ff0000; font-weight: bold; } /* Error */
+code > span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+code > span.cn { color: #880000; } /* Constant */
+code > span.sc { color: #4070a0; } /* SpecialChar */
+code > span.vs { color: #4070a0; } /* VerbatimString */
+code > span.ss { color: #bb6688; } /* SpecialString */
+code > span.im { } /* Import */
+code > span.va { color: #19177c; } /* Variable */
+code > span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+code > span.op { color: #666666; } /* Operator */
+code > span.bu { } /* BuiltIn */
+code > span.ex { } /* Extension */
+code > span.pp { color: #bc7a00; } /* Preprocessor */
+code > span.at { color: #7d9029; } /* Attribute */
+code > span.do { color: #ba2121; font-style: italic; } /* Documentation */
+code > span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+code > span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+code > span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+  </style>
+    <link rel="stylesheet" href="static/skeleton.css" type="text/css" />
+</head>
+<body>
+  <div style="color: #222;">
+
+  <div style="margin-bottom: 4em;">
+  <div class="container" style="font-feature-settings: 'lnum' 1;">
+    <section class="header" style="text-align: center">
+      <h2 class="title">⬢<a href="https://github.com/tarantool/mkrepo">mkrepo</a></h2>
+      <h3 class="title">Automating package lifecycle on s3</h3>
+    </section>
+  </div>
+  <div style="background-color: #56a9f6; text-align:center; padding-top: 2em; padding-bottom: 2em; margin-top: 2em; margin-bottom: 2em;">
+      <img src="static/box.svg" style="align:center">
+  </div>
+  <div class="container">
+    <section class="header" style="text-align: center">
+      <h3 class="title">by <a href="https://twitter.com/racktear">🐦 racktear</a></h3>
+    </section>
+  </div>
+  </div>
+
+<div class="container">
+<h1 id="create-rpm-and-deb-repositories-in-s3">Create RPM and DEB repositories in S3</h1>
+<p><code>mkrepo</code> allows you to maintain an RPM or DEB repository is S3, and periodically regenerate metadata.</p>
+<p>The typical use case is when you have a CI pipeline that pushes new packages to an S3 storage and you don't want your CI to bother with regenerating repository metadata.</p>
+<p>As a bonus, <code>mkrepo</code> supports on-premises S3 servers like <a href="http://minio.io">Minio</a>.</p>
+<p><em>NB: currently only works on CentOS</em></p>
+<h2 id="quickstart">Quickstart</h2>
+<p>Create an s3 bucket named e.g. <code>builds</code> and put a sample package <code>package.rpm</code> to <code>s3://builds/rpmrepo/Packages</code>. Then do the following:</p>
+<div class="sourceCode"><pre class="sourceCode bash"><code class="sourceCode bash"><span class="kw">./mkrepo.py</span> s3://builds/rpmrepo</code></pre></div>
+<p>After this, you will find all metadata generated in <code>s3://builds/rpmrepo/repodata</code></p>
+<h2 id="dependencies">Dependencies</h2>
+<p>Python libraries:</p>
+<ul>
+<li>yum</li>
+<li>boto3</li>
+<li>createrepo</li>
+<li>rpmUtils</li>
+</ul>
+<h2 id="command-line-reference">Command-line reference</h2>
+<p><code>mkrepo</code> parses your <code>~/.aws/config</code> and reads secret key and region settings. So you may skip them in command line invocation in case you have aws config.</p>
+<div class="sourceCode"><pre class="sourceCode bash"><code class="sourceCode bash"><span class="kw">mkrepo.py</span> [-h] [--s3-access-key-id S3_ACCESS_KEY_ID]
+          [<span class="kw">--s3-secret-access-key</span> S3_SECRET_ACCESS_KEY]
+          [<span class="kw">--s3-endpoint</span> S3_ENDPOINT] [--s3-region S3_REGION]
+          [<span class="kw">--sign</span>]
+          <span class="kw">path</span> [path ...]</code></pre></div>
+<ul>
+<li><code>--s3-access-key-id</code> - /(optional)/ specify S3 access key ID</li>
+<li><code>--s3-secret-access-key</code> - /(optional)/ specify S3 secret key</li>
+<li><code>--s3-endpoint</code> - /(optional)/ specify S3 server URI</li>
+<li><code>--s3-region</code> - /(optional)/ specify S3 region (default is us-east-1)</li>
+<li><code>--sign</code> - /(optional) sign package metadata</li>
+<li><code>path</code> - specify list of path to scan for repositories</li>
+</ul>
+<h2 id="how-it-works">How it works</h2>
+<p><code>mkrepo</code> searches the supplied path for either <code>Packages</code> or <code>pool</code> subdir. If it finds <code>Packages</code>, it assumes an rpm repo. If it finds <code>pool</code>, it assumes a deb repo.</p>
+<p>Then it parses existing metadata files (if any) and compares timestamps recorded there with timestamps of all package files in the repo. Any packages that have different timestamps or that don't exist in metadata, are parsed and added to metadata.</p>
+<p>Then new metadata is uploaded to S3, replacing previous one.</p>
+<h2 id="credits">Credits</h2>
+<p>Thanks to <a href="https://github.com/crohr">Cyril Rohr</a> and <a href="https://github.com/krobertson">Ken Robertson</a>, authors of the following awesome tools:</p>
+<ul>
+<li><a href="https://github.com/crohr/rpm-s3">rpm-s3</a></li>
+<li><a href="https://github.com/krobertson/deb-s3">deb-s3</a></li>
+</ul>
+<p>Unfortunately, we needed a solution that is completely decoupled from CI pipeline, and the mentioned tools only support package push mode, when you have to use a tool to actually push packages to s3, insted of native s3 clients.</p>
+</div>
+</div>
+</body>
+</html>
