@@ -3,71 +3,37 @@
 import boto3
 import os
 import sys
+import re
 
 import subprocess
 import tempfile
 import shutil
-import yum
 import storage
-import rpmUtils
+import gzip
+import StringIO
+import rpmfile
+import hashlib
+import json
+
+try:
+    import xml.etree.cElementTree as ET
+except:
+    import xml.etree.ElementTree as ET
 
 
-LIB_ROOT = os.path.dirname(os.path.dirname(__file__))
+def gunzip_string(data):
+    fobj = StringIO.StringIO(data)
+    decompressed = gzip.GzipFile(fileobj=fobj)
 
-sys.path.insert(1, os.path.join(LIB_ROOT, "vendor/createrepo"))
-import createrepo
+    return decompressed.read()
 
-ENDPOINT = 'http://farm.tarantool.org:9001'
+def file_checksum(file_name, checksum_type):
+    h = hashlib.new(checksum_type)
+    with open(file_name, "rb") as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+            h.update(chunk)
 
-class LoggerCallback(object):
-    def errorlog(self, message):
-        print message
-
-    def log(self, message):
-        message = message.strip()
-#        if message:
-#            print message
-
-class S3Grabber(object):
-    def __init__(self, storage):
-        self.storage = storage
-
-    def key_exists(self, key):
-        objs = list(self.bucket.objects.filter(Prefix=key))
-        if len(objs) > 0 and objs[0].key == key:
-            return key
-        else:
-            return None
-
-    def urlgrab(self, url, filename, **kwargs):
-        if url.startswith('file://'):
-            url = url[len('file://'):]
-
-        if not self.storage.exists(url):
-            print "urlgrab: key doesn't exist: %s" % url
-            raise createrepo.grabber.URLGrabError(14, '%s not found' % url)
-
-        self.storage.download_file(url, filename)
-
-        mtime = self.storage.mtime(url)
-        os.utime(filename, (mtime, mtime))
-
-        return filename
-
-    def syncdir(self, dir, remote_dir):
-        """Copy all files in dir to url, removing any existing keys."""
-        existing_keys = list(self.storage.files(remote_dir))
-        new_keys = []
-
-        for filename in sorted(os.listdir(dir)):
-            source = os.path.join(dir, filename)
-            target = os.path.join(remote_dir, filename)
-            self.storage.upload_file(target, source)
-            new_keys.append(target.lstrip('/'))
-
-        for key in existing_keys:
-            if key not in new_keys:
-                self.storage.delete_file(key)
+    return h.hexdigest()
 
 
 def sign_metadata(repomdfile):
@@ -75,9 +41,9 @@ def sign_metadata(repomdfile):
     cmd = ["gpg", "--detach-sign", "--armor", repomdfile]
     try:
         subprocess.check_call(cmd)
-        print "Successfully signed repository metadata file"
+        print ("Successfully signed repository metadata file")
     except subprocess.CalledProcessError as e:
-        print "Unable to sign repository metadata '%s'" % (repomdfile)
+        print ("Unable to sign repository metadata '%s'" % (repomdfile))
         exit(1)
 
 def setup_repository(repo):
@@ -91,97 +57,451 @@ def setup_repository(repo):
     repo._grab.syncdir(os.path.join(tmpdir, "repodata"), "repodata")
     shutil.rmtree(tmpdir)
 
-def update_repo(storage, sign):
-    tmpdir = tempfile.mkdtemp()
-    s3grabber = S3Grabber(storage)
 
-    archlist = set(rpmUtils.arch.arches.keys() +
-                   rpmUtils.arch.arches.values() +
-                   ['src'])
+def parse_repomd(data):
+    root = ET.fromstring(data)
+    namespaces = {'repo': 'http://linux.duke.edu/metadata/repo'}
 
-    # Set up temporary repo that will fetch repodata from s3
-    yumbase = yum.YumBase()
-    yumbase.preconf.disabled_plugins = '*'
-    yumbase.conf.cachedir = os.path.join(tmpdir, 'cache')
-    yumbase.repos.disableRepo('*')
-    repo = yumbase.add_enable_repo('s3')
-    repo._grab = s3grabber
+    filelists = None
+    primary = None
 
-    setup_repository(repo)
+    for child in root:
+        if 'type' not in child.attrib:
+            continue
 
-    # Ensure that missing base path doesn't cause trouble
-    repo._sack = yum.sqlitesack.YumSqlitePackageSack(
-        createrepo.readMetadata.CreaterepoPkgOld)
+        result = {}
+        for key in ['checksum', 'open-checksum',
+                    'timestamp', 'size', 'open-size']:
+            result[key] = child.find('repo:' + key, namespaces).text
+        result['location'] = child.find('repo:location', namespaces).attrib['href']
 
-    yumbase._getSacks(archlist=list(archlist))
+        if child.attrib['type'] == 'filelists':
+            filelists = result
+        elif child.attrib['type'] == 'primary':
+            primary = result
 
-    # Create metadata generator
-    mdconf = createrepo.MetaDataConfig()
-    mdconf.directory = tmpdir
-    mdconf.pkglist = yum.packageSack.MetaSack()
-    mdconf.database = False
-    mdconf.deltas = False
-    mdgen = createrepo.MetaDataGenerator(mdconf, LoggerCallback())
-    mdgen.tempdir = tmpdir
+    return filelists, primary
 
-    # Combine existing package sack with new rpm file list
-    new_packages = yum.packageSack.PackageSack()
+def parse_filelists(data):
+    root = ET.fromstring(data)
+    namespaces = {'filelists': 'http://linux.duke.edu/metadata/filelists'}
 
-    rpmfiles = [f for f in storage.files() if f.endswith('.rpm')]
+    packages = {}
 
-    pkgs = yumbase.pkgSack.searchNevra()
+    for child in root:
+        if not child.tag.endswith('}package'):
+            continue
 
-    pkgs = []
-    pkgs = yumbase.pkgSack.returnPackages()
+        pkgid = child.attrib['pkgid']
+        name = child.attrib['name']
+        arch = child.attrib['arch']
+        version = child.find('filelists:version', namespaces)
+        version = {'ver': version.attrib['ver'],
+                   'rel': version.attrib['rel'],
+                   'epoch': version.attrib['epoch']}
 
-    mtimes = {}
+        files = []
+        for node in child.findall('filelists:file', namespaces):
+            file_name = node.text
+            file_type = 'file'
 
-    for pkg in pkgs:
-        mtimes['Packages/'+pkg.relativepath] = pkg.filetime
+            if 'type' in node.attrib and node.attrib['type'] == 'dir':
+                file_type = 'dir'
+            files.append({'type': file_type, 'name': file_name})
 
-    for rpmfile in rpmfiles:
-        rpmfile = rpmfile.lstrip('/')
+        package = {'pkgid': pkgid, 'name': name, 'arch': arch,
+                   'version': version, 'files': files}
+        nerv = (name, version['epoch'], version['rel'], version['ver'])
+        packages[nerv] = package
 
-        mtime = storage.mtime(rpmfile)
-        if rpmfile in mtimes:
-            if mtime == mtimes[rpmfile]:
-                print "Skipping: '%s'" % rpmfile
-                continue
-            print "Updating: '%s'" % rpmfile
-        else:
-            print "Adding: '%s'" % rpmfile
 
-        mdgen._grabber = s3grabber
+    return packages
 
-        # please, don't mess with my path in the <location> tags of primary.xml.gz
-        relative_path = "."
-        newpkg = mdgen.read_in_package('file://' +rpmfile, relative_path)
+def dump_filelists(filelists):
+    pass
 
-        # don't put a base url in <location> tags of primary.xml.gz
-        newpkg._baseurl = None
+def parse_primary(data):
+    root = ET.fromstring(data)
+    namespaces = {'primary': 'http://linux.duke.edu/metadata/common',
+                  'rpm': 'http://linux.duke.edu/metadata/rpm'}
 
-        older_pkgs = yumbase.pkgSack.packagesByTuple(newpkg.pkgtup)
+    packages = {}
 
-        # Remove packages with the same version
-        for i, older in enumerate(reversed(older_pkgs), 1):
-            if older.pkgtup == newpkg.pkgtup:
-                yumbase.pkgSack.delPackage(older)
+    for child in root:
+        if not child.tag.endswith('}package'):
+            continue
 
-        new_packages.addPackage(newpkg)
+        checksum = child.find('primary:checksum', namespaces).text
+        name = child.find('primary:name', namespaces).text
+        arch = child.find('primary:arch', namespaces).text
+        summary = child.find('primary:summary', namespaces).text
+        description = child.find('primary:description', namespaces).text
+        packager = child.find('primary:packager', namespaces).text
+        url = child.find('primary:url', namespaces).text
+        time = child.find('primary:time', namespaces)
+        file_time = time.attrib['file']
+        build_time = time.attrib['build']
+        location = child.find('primary:location', namespaces).attrib['href']
 
-    mdconf.pkglist.addSack('existing', yumbase.pkgSack)
-    mdconf.pkglist.addSack('new', new_packages)
+        version = child.find('primary:version', namespaces)
+        version = {'ver': version.attrib['ver'],
+                   'rel': version.attrib['rel'],
+                   'epoch': version.attrib['epoch']}
 
-    # Write out new metadata to tmpdir
-    mdgen.doPkgMetadata()
-    mdgen.doRepoMetadata()
-    mdgen.doFinalMove()
+        # format
+        fmt = child.find('primary:format', namespaces)
 
-    if sign:
-        # Generate repodata/repomd.xml.asc
-        sign_metadata(os.path.join(tmpdir, 'repodata', 'repomd.xml'))
+        format_license = fmt.find('rpm:license', namespaces).text
+        format_vendor = fmt.find('rpm:vendor', namespaces).text
+        format_group = fmt.find('rpm:group', namespaces).text
+        format_buildhost = fmt.find('rpm:buildhost', namespaces).text
+        format_sourcerpm = fmt.find('rpm:sourcerpm', namespaces).text
+        header_range = fmt.find('rpm:header-range', namespaces)
+        format_header_start = header_range.attrib['start']
+        format_header_end = header_range.attrib['end']
 
-    # Replace metadata on s3
-    s3grabber.syncdir(os.path.join(tmpdir, 'repodata'), 'repodata')
+        # provides
 
-    shutil.rmtree(tmpdir)
+        provides = fmt.find('rpm:provides', namespaces)
+        if provides is None:
+            provides = []
+
+        provides_dict = {}
+
+        for entry in provides:
+            provides_name = entry.attrib['name']
+            provides_epoch = entry.attrib.get('epoch', None)
+            provides_rel = entry.attrib.get('rel', None)
+            provides_ver = entry.attrib.get('ver', None)
+            provides_flags = entry.attrib.get('flags', None)
+
+            nerv = (provides_name, provides_epoch, provides_rel, provides_ver)
+
+            provides_dict[nerv] = {'name': provides_name,
+                                   'epoch': provides_epoch,
+                                   'rel': provides_rel,
+                                   'ver': provides_ver,
+                                   'flags': provides_flags}
+
+        # requires
+
+        requires = fmt.find('rpm:requires', namespaces)
+        if requires is None:
+            requires = []
+
+        requires_dict = {}
+
+        for entry in requires:
+            requires_name = entry.attrib['name']
+            requires_epoch = entry.attrib.get('epoch', None)
+            requires_rel = entry.attrib.get('rel', None)
+            requires_ver = entry.attrib.get('ver', None)
+            requires_flags = entry.attrib.get('flags', None)
+            requires_pre = entry.attrib.get('pre', None)
+
+            nerv = (requires_name, requires_epoch, requires_rel, requires_ver)
+
+            requires_dict[nerv] = {'name': requires_name,
+                                   'epoch': requires_epoch,
+                                   'rel': requires_rel,
+                                   'ver': requires_ver,
+                                   'flags': requires_flags,
+                                   'pre': requires_pre}
+
+        # obsoletes
+
+        obsoletes = fmt.find('rpm:obsoletes', namespaces)
+        if obsoletes is None:
+            obsoletes = []
+
+        obsoletes_dict = {}
+
+        for entry in obsoletes:
+            obsoletes_name = entry.attrib['name']
+            obsoletes_epoch = entry.attrib.get('epoch', None)
+            obsoletes_rel = entry.attrib.get('rel', None)
+            obsoletes_ver = entry.attrib.get('ver', None)
+            obsoletes_flags = entry.attrib.get('flags', None)
+
+            nerv = (obsoletes_name, obsoletes_epoch, obsoletes_rel, obsoletes_ver)
+
+            obsoletes_dict[nerv] = {'name': obsoletes_name,
+                                    'epoch': obsoletes_epoch,
+                                    'rel': obsoletes_rel,
+                                    'ver': obsoletes_ver,
+                                    'flags': obsoletes_flags}
+
+        # files
+        files = []
+        for node in fmt.findall('primary:file', namespaces):
+            file_name = node.text
+            file_type = 'file'
+
+            if 'type' in node.attrib and node.attrib['type'] == 'dir':
+                file_type = 'dir'
+            files.append({'type': file_type, 'name': file_name})
+
+
+        # result package
+        format_dict = {'license': format_license,
+                       'vendor': format_vendor,
+                       'group': format_group,
+                       'buildhost': format_buildhost,
+                       'sourcerpm': format_sourcerpm,
+                       'header_start': format_header_start,
+                       'header_end': format_header_end,
+                       'provides': provides_dict,
+                       'requires': requires_dict,
+                       'obsoletes': obsoletes_dict,
+                       'files': files}
+
+        package = {'checksum': checksum, 'name': name, 'arch': arch,
+                   'version': version, 'summary': summary,
+                   'description': description, 'packager': packager,
+                   'url': url, 'file_time': file_time, 'build_time': build_time,
+                   'location': location, 'format': format_dict}
+
+        nerv = (name, version['epoch'], version['rel'], version['ver'])
+        packages[nerv] = package
+    return packages
+
+def parse_ver_str(ver_str):
+    if not ver_str:
+        return (None, None, None)
+
+    expr = "^(\d+:)?([^-]*)-([^-]*)$"
+    match = re.match(expr, ver_str)
+    if not match:
+        raise RuntimeError("Can't parse version: '%s'" % ver_str)
+    epoch = match.group(1)[:-1] if match.group(1) else "0"
+    ver = match.group(2)
+    rel = match.group(3)
+    return (epoch, ver, rel)
+
+def header_to_filelists(header, sha256):
+    pkgid = sha256
+    name = header['NAME']
+    arch = header['ARCH']
+    epoch = header.get('EPOCH', None)
+    rel = header.get('RELEASE', None)
+    ver = header['VERSION']
+    version = {'ver': ver, 'rel': rel, 'epoch': epoch}
+
+    dirnames = header['DIRNAMES']
+
+    basenames = header['BASENAMES']
+    dirindexes = header['DIRINDEXES']
+
+    files = []
+    for entry in zip(basenames, dirindexes):
+        filename = entry[0]
+        dirname = dirnames[entry[1]]
+        files.append({'name': dirname + filename, 'type': 'file'})
+
+    for dirname in dirnames:
+        files.append({'name': dirname, 'type': 'dir'})
+
+    package = {'pkgid': pkgid, 'name': name, 'arch': arch,
+               'version': version, 'files': files}
+    nerv = (name, version['epoch'], version['rel'], version['ver'])
+
+    return nerv, package
+
+
+
+def header_to_primary(header, sha256, mtime, location):
+    name = header['NAME']
+    arch = header['ARCH']
+    summary = header['SUMMARY']
+    description = header['DESCRIPTION']
+    packager = header.get('PACKAGER', None)
+    build_time = header['BUILDTIME']
+    url = header['URL']
+    epoch = header.get('EPOCH', None)
+    rel = header.get('RELEASE', None)
+    ver = header['VERSION']
+    version = {'ver': ver, 'rel': rel, 'epoch': epoch}
+
+    # format
+
+    format_license = header.get('LICENSE', None)
+    format_vendor = header.get('VENDOR', None)
+    format_group = header.get('GROUP', None)
+    format_buildhost = header.get('BUILDHOST', None)
+    format_sourcerpm = header.get('SOURCERPM', None)
+    format_header_start = None
+    format_header_end = None
+
+    # provides
+
+    provides_dict = {}
+    providename = header.get('PROVIDENAME', [])
+    provideversion = header.get('PROVIDEVERSION', [])
+    provideflags = header.get('PROVIDEFLAGS', [])
+
+    for entry in zip(providename, provideversion, provideflags):
+        provides_name = entry[0]
+        provides_epoch, provides_ver, provides_rel = \
+            parse_ver_str(entry[1])
+        provides_flags = rpmfile.flags_to_str(entry[2])
+
+        nerv = (provides_name, provides_epoch, provides_rel, provides_ver)
+
+        provides_dict[nerv] = {'name': provides_name,
+                               'epoch': provides_epoch,
+                               'rel': provides_rel,
+                               'ver': provides_ver,
+                               'flags': provides_flags}
+
+    # requires
+
+    requires_dict = {}
+    requirename = header.get('REQUIRENAME', [])
+    requireversion = header.get('REQUIREVERSION', [])
+    requireflags = header.get('REQUIREFLAGS', [])
+
+    for entry in zip(requirename, requireversion, requireflags):
+        requires_name = entry[0]
+        requires_epoch, requires_ver, requires_rel = \
+            parse_ver_str(entry[1])
+        requires_flags = rpmfile.flags_to_str(entry[2])
+
+        if entry[2] & rpmfile.RPMSENSE_RPMLIB:
+            continue
+
+        pre = None
+
+        if entry[2] & 4352:
+            pre = "1"
+
+        nerv = (requires_name, requires_epoch, requires_rel, requires_ver)
+
+        requires_dict[nerv] = {'name': requires_name,
+                               'epoch': requires_epoch,
+                               'rel': requires_rel,
+                               'ver': requires_ver,
+                               'flags': requires_flags,
+                               "pre": pre}
+
+    # obsoletes
+
+    obsoletes_dict = {}
+    obsoletename = header.get('OBSOLETENAME', [])
+    obsoleteversion = header.get('OBSOLETEVERSION', [])
+    obsoleteflags = header.get('OBSOLETEFLAGS', [])
+
+    for entry in zip(obsoletename, obsoleteversion, obsoleteflags):
+        obsoletes_name = entry[0]
+        obsoletes_epoch, obsoletes_ver, obsoletes_rel = \
+            parse_ver_str(entry[1])
+        obsoletes_flags = rpmfile.flags_to_str(entry[2])
+
+        nerv = (obsoletes_name, obsoletes_epoch, obsoletes_rel, obsoletes_ver)
+
+        obsoletes_dict[nerv] = {'name': obsoletes_name,
+                               'epoch': obsoletes_epoch,
+                               'rel': obsoletes_rel,
+                               'ver': obsoletes_ver,
+                               'flags': obsoletes_flags}
+
+    # files
+
+    dirnames = header['DIRNAMES']
+
+    basenames = header['BASENAMES']
+    dirindexes = header['DIRINDEXES']
+
+    files = []
+    for entry in zip(basenames, dirindexes):
+        filename = entry[0]
+        dirname = dirnames[entry[1]]
+        files.append({'name': dirname + filename, 'type': 'file'})
+
+    for dirname in dirnames:
+        files.append({'name': dirname, 'type': 'dir'})
+
+    # result package
+    format_dict = {'license': format_license,
+                   'vendor': format_vendor,
+                   'group': format_group,
+                   'buildhost': format_buildhost,
+                   'sourcerpm': format_sourcerpm,
+                   'header_start': format_header_start,
+                   'header_end': format_header_end,
+                   'provides': provides_dict,
+                   'requires': requires_dict,
+                   'obsoletes': obsoletes_dict,
+                   'files': files}
+
+    package = {'checksum': sha256, 'name': name, 'arch': arch,
+               'version': version, 'summary': summary,
+               'description': description, 'packager': packager,
+               'url': url, 'file_time': str(int(mtime)), 'build_time': build_time,
+               'location': location, 'format': format_dict}
+
+    nerv = (name, version['epoch'], version['rel'], version['ver'])
+
+    return nerv, package
+
+def update_repo(storage):
+    filelists = {}
+    primary = {}
+
+    if storage.exists('repodata/repomd.xml'):
+        data = storage.read_file('repodata/repomd.xml')
+
+        filelists, primary = parse_repomd(data)
+
+        data = storage.read_file(filelists['location'])
+        filelists = parse_filelists(gunzip_string(data))
+
+        data = storage.read_file(primary['location'])
+        primary = parse_primary(gunzip_string(data))
+
+    recorded_files = set()
+    for package in primary.values():
+        recorded_files.add((package['location'], float(package['file_time'])))
+
+    existing_files = set()
+    expr = "^.*\.rpm$"
+    for file_path in storage.files('.'):
+        match = re.match(expr, file_path)
+
+        if not match:
+            continue
+
+        mtime = storage.mtime(file_path)
+
+        existing_files.add((file_path, mtime))
+
+    files_to_add = existing_files - recorded_files
+
+    for file_to_add in files_to_add:
+        file_path = file_to_add[0]
+        mtime = file_to_add[1]
+        print("Adding: '%s'" % file_path)
+
+
+        tmpdir = tempfile.mkdtemp()
+        storage.download_file(file_path, os.path.join(tmpdir, 'package.rpm'))
+
+        rpminfo = rpmfile.RpmInfo()
+        header = rpminfo.parse_file(os.path.join(tmpdir, 'package.rpm'))
+        sha256 = file_checksum(os.path.join(tmpdir, 'package.rpm'), "sha256")
+
+        shutil.rmtree(tmpdir)
+
+        nerv, prim = header_to_primary(header, sha256, mtime, file_path)
+        _, flist = header_to_filelists(header, sha256)
+
+        primary[nerv] = prim
+        filelists[nerv] = flist
+
+
+def main():
+    stor = storage.FilesystemStorage(sys.argv[1])
+
+    update_repo(stor)
+
+if __name__ == '__main__':
+    main()

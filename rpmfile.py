@@ -10,6 +10,59 @@ RPM_HEADER_HEADER_MAGIC = 0x8eade8
 
 OLD_STYLE_HEADER_SIZE = 96
 
+RPMSENSE_ANY = 0
+RPMSENSE_LESS = 1 << 1
+RPMSENSE_GREATER = 1 << 2
+RPMSENSE_EQUAL = 1 << 3
+RPMSENSE_SENSEMASK = 0x0e
+RPMSENSE_NOTEQUAL = RPMSENSE_EQUAL ^ RPMSENSE_SENSEMASK
+
+RPMSENSE_PROVIDES = (1 << 4)
+RPMSENSE_CONFLICTS = (1 << 5)
+RPMSENSE_OBSOLETES = (1 << 7)
+RPMSENSE_INTERP = (1 << 8),
+RPMSENSE_SCRIPT_PRE = ((1 << 9)| RPMSENSE_ANY )
+RPMSENSE_SCRIPT_POST = ((1 << 10)| RPMSENSE_ANY )
+RPMSENSE_SCRIPT_PREUN = ((1 << 11)| RPMSENSE_ANY )
+RPMSENSE_SCRIPT_POSTUN = ((1 << 12)| RPMSENSE_ANY )
+RPMSENSE_SCRIPT_VERIFY = (1 << 13)
+RPMSENSE_FIND_REQUIRES = (1 << 14)
+RPMSENSE_FIND_PROVIDES = (1 << 15)
+RPMSENSE_TRIGGERIN = (1 << 16)
+RPMSENSE_TRIGGERUN = (1 << 17)
+RPMSENSE_TRIGGERPOSTUN = (1 << 18)
+RPMSENSE_MISSINGOK = (1 << 19)
+RPMSENSE_SCRIPT_PREP = (1 << 20)
+RPMSENSE_SCRIPT_BUILD = (1 << 21)
+RPMSENSE_SCRIPT_INSTALL = (1 << 22)
+RPMSENSE_SCRIPT_CLEAN = (1 << 23)
+RPMSENSE_RPMLIB = ((1 << 24) | RPMSENSE_ANY )
+RPMSENSE_TRIGGERPREIN = (1 << 25)
+RPMSENSE_KEYRING = (1 << 26)
+RPMSENSE_PATCHES = (1 << 27)
+RPMSENSE_CONFIG = (1 << 28)
+
+def flags_to_str(flags):
+    flags = flags & 0x0e
+
+    if flags == RPMSENSE_NOTEQUAL:
+        return "NE"
+    elif flags == RPMSENSE_EQUAL:
+        return "EQ"
+    elif flags & RPMSENSE_LESS:
+        return "LT"
+    elif flags & RPMSENSE_GREATER:
+        return "GT"
+    elif flags & (RPMSENSE_LESS | RPMSENSE_EQUAL):
+        return "LE"
+    elif flags & (RPMSENSE_GREATER | RPMSENSE_EQUAL):
+        return "GE"
+    elif flags == 0:
+        return None
+    else:
+        raise RuntimeError("Unknown flags: %d" % flags)
+
+
 
 SIGNATURE_TAG_TABLE = {
     1000: "SIZE",
@@ -324,7 +377,11 @@ class RpmInfo(object):
             elif type == 3:
                 value = struct.unpack('>h', f.read(2))[0]
             elif type == 4:
-                value = struct.unpack('>I', f.read(4))[0]
+                value = []
+                for _ in range(count):
+                    value.append(struct.unpack('>I', f.read(4))[0])
+                if len(value) == 1:
+                    value = value[0]
             elif type == 5:
                 value = struct.unpack('>q', f.read(8))[0]
             elif type == 6:

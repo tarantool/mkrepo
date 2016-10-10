@@ -154,7 +154,6 @@ class S3Storage(Storage):
         s3obj.upload_fileobj(buf)
 
     def download_file(self, key, destination):
-        print "download: " + key
         fullkey = os.path.normpath(os.path.join(self.prefix, key.lstrip('/')))
 
         self.client.download_file(self.bucket, fullkey, destination)
