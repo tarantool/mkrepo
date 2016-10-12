@@ -371,11 +371,23 @@ class RpmInfo(object):
             if type == 0:
                 pass
             elif type == 1:
-                value = struct.unpack('>c', f.read(1))[0]
+                value = []
+                for _ in range(count):
+                    value.append(struct.unpack('>c', f.read(1))[0])
+                if len(value) == 1:
+                    value = value[0]
             elif type == 2:
-                value = struct.unpack('>b', f.read(1))[0]
+                value = []
+                for _ in range(count):
+                    value.append(struct.unpack('>b', f.read(1))[0])
+                if len(value) == 1:
+                    value = value[0]
             elif type == 3:
-                value = struct.unpack('>h', f.read(2))[0]
+                value = []
+                for _ in range(count):
+                    value.append(struct.unpack('>h', f.read(2))[0])
+                if len(value) == 1:
+                    value = value[0]
             elif type == 4:
                 value = []
                 for _ in range(count):
@@ -383,7 +395,11 @@ class RpmInfo(object):
                 if len(value) == 1:
                     value = value[0]
             elif type == 5:
-                value = struct.unpack('>q', f.read(8))[0]
+                value = []
+                for _ in range(count):
+                    value.append(struct.unpack('>q', f.read(8))[0])
+                if len(value) == 1:
+                    value = value[0]
             elif type == 6:
                 char = None
                 string = ""
@@ -446,7 +462,11 @@ class RpmInfo(object):
             f.seek(OLD_STYLE_HEADER_SIZE) # size of old-style header
 
             signature = self.parse_header(f, SIGNATURE_TAG_TABLE)
+
+            self.header_start = f.tell()
             header = self.parse_header(f, HEADER_TAG_TABLE)
+            self.header_end = f.tell()
+
             header.update(signature)
             return header
 
@@ -454,7 +474,9 @@ class RpmInfo(object):
 def main():
     i = RpmInfo()
     data = i.parse_file(sys.argv[1])
-    print data
+    for key, value in data.items():
+        print("%s: %s" % (key, str(value)))
+
 
 
 if __name__ == '__main__':

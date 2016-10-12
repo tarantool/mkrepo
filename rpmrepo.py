@@ -118,7 +118,31 @@ def parse_filelists(data):
     return packages
 
 def dump_filelists(filelists):
-    pass
+    res = ""
+
+    res += '<?xml version="1.0" encoding="UTF-8"?>\n'
+    res += '<filelists xmlns="http://linux.duke.edu/metadata/filelists" packages="%d">\n' % len(filelists)
+
+    for package in filelists.values():
+        res += '<package pkgid="%s" name="%s" arch="%s">\n' % (
+            package['pkgid'], package['name'], package['arch'])
+
+        ver = package['version']
+
+        res += '  <version epoch="%s" ver="%s" rel="%s"/>\n' % (
+            ver['epoch'], ver['ver'], ver['rel'])
+
+        for fileentry in package['files']:
+            if fileentry['type'] == 'file':
+                res += '  <file>%s</file>\n' % fileentry['name']
+            else:
+                res += '  <file type="dir">%s</file>\n' % fileentry['name']
+
+        res += '</package>\n'
+
+    res += "</filelists>\n"
+
+    return res
 
 def parse_primary(data):
     root = ET.fromstring(data)
@@ -265,17 +289,110 @@ def parse_primary(data):
         packages[nerv] = package
     return packages
 
+def dump_primary(primary):
+    res = ""
+
+    res += '<?xml version="1.0" encoding="UTF-8"?>\n'
+    res += '<filelists xmlns="http://linux.duke.edu/metadata/common"xmlns:rpm="http://linux.duke.edu/metadata/rpm" packages="%d">\n' % len(primary)
+
+    for package in primary.values():
+        res += '<package type="rpm">\n'
+        res += '  <name>%s</name>\n' % package['name']
+        res += '  <arch>%s</arch>\n' % package['arch']
+
+        ver = package['version']
+        res += '  <version epoch="%s" ver="%s" rel="%s"/>\n' % (
+            ver['epoch'], ver['ver'], ver['rel'])
+
+        res += '  <checksum type="sha256" pkgid="YES">%s</checksum>\n' % \
+            package['checksum']
+
+        res += '  <summary>%s</summary>\n' % (package['summary'] or '')
+        res += '  <description>%s</description>\n' % (package['description'] or '')
+        res += '  <packager>%s</packager>\n' % (package['packager'] or '')
+
+        res += '  <url>%s</url>\n' % (package['url'] or '')
+        res += '  <time file="%s" build="%s"/>\n' % (package['file_time'],
+                                                     package['build_time'])
+        res += '  <location href="%s"/>\n' % package['location']
+
+        fmt = package['format']
+
+        res += '  <format>\n'
+
+        res += '    <rpm:license>%s<rpm:license>\n' % fmt['license']
+
+        if fmt['vendor']:
+            res += '    <rpm:vendor>%s<rpm:vendor>\n' % fmt['vendor']
+
+        res += '    <rpm:group>%s<rpm:group>\n' % fmt['group']
+        res += '    <rpm:buildhost>%s<rpm:buildhost>\n' % fmt['buildhost']
+        res += '    <rpm:sourcerpm>%s<rpm:sourcerpm>\n' % fmt['sourcerpm']
+
+        res += '    <rpm:header-range start="%s" end="%s"/>\n' % (
+            fmt['header_start'], fmt['header_end'])
+
+        res += '    <rpm:provides>\n'
+
+        for key in sorted(fmt['provides']):
+            provides = fmt['provides'][key]
+            entry = ['name="%s"' % provides['name']]
+            for component in ['flags', 'epoch', 'ver', 'rel']:
+                if provides[component] is not None:
+                    entry.append('%s="%s"' % (component, provides[component]))
+
+            res += '      <rpm:entry ' + ' '.join(entry) + '/>\n'
+
+
+        res += '    </rpm:provides>\n'
+
+        res += '    <rpm:requires>\n'
+
+        for key in sorted(fmt['requires']):
+            requires = fmt['requires'][key]
+            entry = ['name="%s"' % requires['name']]
+            for component in ['flags', 'epoch', 'ver', 'rel', 'pre']:
+                if requires[component] is not None:
+                    entry.append('%s="%s"' % (component, requires[component]))
+
+            res += '      <rpm:entry ' + ' '.join(entry) + '/>\n'
+
+
+        res += '    </rpm:requires>\n'
+
+        res += '    <rpm:obsoletes>\n'
+
+        for key in sorted(fmt['obsoletes']):
+            obsoletes = fmt['obsoletes'][key]
+            entry = ['name="%s"' % obsoletes['name']]
+            for component in ['flags', 'epoch', 'ver', 'rel']:
+                if obsoletes[component] is not None:
+                    entry.append('%s="%s"' % (component, obsoletes[component]))
+
+            res += '      <rpm:entry ' + ' '.join(entry) + '/>\n'
+
+
+        res += '    </rpm:obsoletes>\n'
+
+        res += '  </format>\n'
+        res += '</package>\n'
+
+    res += "</metadata>\n"
+
+    return res
+
+
 def parse_ver_str(ver_str):
     if not ver_str:
         return (None, None, None)
 
-    expr = "^(\d+:)?([^-]*)-([^-]*)$"
+    expr = "^(\d+:)?([^-]*)(-[^-]*)?$"
     match = re.match(expr, ver_str)
     if not match:
         raise RuntimeError("Can't parse version: '%s'" % ver_str)
     epoch = match.group(1)[:-1] if match.group(1) else "0"
     ver = match.group(2)
-    rel = match.group(3)
+    rel = match.group(3)[1:] if match.group(3) else None
     return (epoch, ver, rel)
 
 def header_to_filelists(header, sha256):
@@ -288,15 +405,26 @@ def header_to_filelists(header, sha256):
     version = {'ver': ver, 'rel': rel, 'epoch': epoch}
 
     dirnames = header['DIRNAMES']
+    classdict = header['CLASSDICT']
 
     basenames = header['BASENAMES']
     dirindexes = header['DIRINDEXES']
+    fileclasses = header['FILECLASS']
 
     files = []
-    for entry in zip(basenames, dirindexes):
+
+    for entry in zip(basenames, dirindexes, fileclasses):
         filename = entry[0]
         dirname = dirnames[entry[1]]
-        files.append({'name': dirname + filename, 'type': 'file'})
+
+        fileclass = classdict[entry[2]]
+
+        filetype = "file"
+
+        if fileclass == "directory":
+            filetype = "dir"
+
+        files.append({'name': dirname + filename, 'type': filetype})
 
     for dirname in dirnames:
         files.append({'name': dirname, 'type': 'dir'})
@@ -309,7 +437,7 @@ def header_to_filelists(header, sha256):
 
 
 
-def header_to_primary(header, sha256, mtime, location):
+def header_to_primary(header, sha256, mtime, location, header_start, header_end):
     name = header['NAME']
     arch = header['ARCH']
     summary = header['SUMMARY']
@@ -329,8 +457,8 @@ def header_to_primary(header, sha256, mtime, location):
     format_group = header.get('GROUP', None)
     format_buildhost = header.get('BUILDHOST', None)
     format_sourcerpm = header.get('SOURCERPM', None)
-    format_header_start = None
-    format_header_end = None
+    format_header_start = header_start
+    format_header_end = header_end
 
     # provides
 
@@ -338,6 +466,9 @@ def header_to_primary(header, sha256, mtime, location):
     providename = header.get('PROVIDENAME', [])
     provideversion = header.get('PROVIDEVERSION', [])
     provideflags = header.get('PROVIDEFLAGS', [])
+
+    if not isinstance(provideflags, list):
+        provideflags = [provideflags]
 
     for entry in zip(providename, provideversion, provideflags):
         provides_name = entry[0]
@@ -491,12 +622,15 @@ def update_repo(storage):
 
         shutil.rmtree(tmpdir)
 
-        nerv, prim = header_to_primary(header, sha256, mtime, file_path)
+        nerv, prim = header_to_primary(header, sha256, mtime, file_path,
+                                       rpminfo.header_start, rpminfo.header_end)
         _, flist = header_to_filelists(header, sha256)
 
         primary[nerv] = prim
         filelists[nerv] = flist
 
+        print(dump_filelists(filelists))
+        print(dump_primary(primary))
 
 def main():
     stor = storage.FilesystemStorage(sys.argv[1])
