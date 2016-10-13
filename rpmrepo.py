@@ -15,11 +15,21 @@ import rpmfile
 import hashlib
 import json
 
+import datetime
+import time
+
+from xml.sax.saxutils import escape
+
 try:
     import xml.etree.cElementTree as ET
 except:
     import xml.etree.ElementTree as ET
 
+def gzip_string(data):
+    out = StringIO.StringIO()
+    with gzip.GzipFile(fileobj=out, mode="w") as fobj:
+        fobj.write(data)
+    return out.getvalue()
 
 def gunzip_string(data):
     fobj = StringIO.StringIO(data)
@@ -32,6 +42,14 @@ def file_checksum(file_name, checksum_type):
     with open(file_name, "rb") as f:
         for chunk in iter(lambda: f.read(4096), b""):
             h.update(chunk)
+
+    return h.hexdigest()
+
+def string_checksum(data, checksum_type):
+    fobj = StringIO.StringIO(data)
+    h = hashlib.new(checksum_type)
+    for chunk in iter(lambda: fobj.read(4096), b""):
+        h.update(chunk)
 
     return h.hexdigest()
 
@@ -65,6 +83,8 @@ def parse_repomd(data):
     filelists = None
     primary = None
 
+    revision = root.find('repo:revision', namespaces).text
+
     for child in root:
         if 'type' not in child.attrib:
             continue
@@ -80,7 +100,7 @@ def parse_repomd(data):
         elif child.attrib['type'] == 'primary':
             primary = result
 
-    return filelists, primary
+    return filelists, primary, revision
 
 def parse_filelists(data):
     root = ET.fromstring(data)
@@ -176,7 +196,8 @@ def parse_primary(data):
         fmt = child.find('primary:format', namespaces)
 
         format_license = fmt.find('rpm:license', namespaces).text
-        format_vendor = fmt.find('rpm:vendor', namespaces).text
+        vendor = fmt.find('rpm:vendor', namespaces)
+        format_vendor = vendor.text if vendor else ""
         format_group = fmt.find('rpm:group', namespaces).text
         format_buildhost = fmt.find('rpm:buildhost', namespaces).text
         format_sourcerpm = fmt.find('rpm:sourcerpm', namespaces).text
@@ -293,7 +314,7 @@ def dump_primary(primary):
     res = ""
 
     res += '<?xml version="1.0" encoding="UTF-8"?>\n'
-    res += '<filelists xmlns="http://linux.duke.edu/metadata/common"xmlns:rpm="http://linux.duke.edu/metadata/rpm" packages="%d">\n' % len(primary)
+    res += '<metadata xmlns="http://linux.duke.edu/metadata/common" xmlns:rpm="http://linux.duke.edu/metadata/rpm" packages="%d">\n' % len(primary)
 
     for package in primary.values():
         res += '<package type="rpm">\n'
@@ -307,9 +328,9 @@ def dump_primary(primary):
         res += '  <checksum type="sha256" pkgid="YES">%s</checksum>\n' % \
             package['checksum']
 
-        res += '  <summary>%s</summary>\n' % (package['summary'] or '')
-        res += '  <description>%s</description>\n' % (package['description'] or '')
-        res += '  <packager>%s</packager>\n' % (package['packager'] or '')
+        res += '  <summary>%s</summary>\n' % escape(package['summary'] or '')
+        res += '  <description>%s</description>\n' % escape(package['description'] or '')
+        res += '  <packager>%s</packager>\n' % escape(package['packager'] or '')
 
         res += '  <url>%s</url>\n' % (package['url'] or '')
         res += '  <time file="%s" build="%s"/>\n' % (package['file_time'],
@@ -320,14 +341,14 @@ def dump_primary(primary):
 
         res += '  <format>\n'
 
-        res += '    <rpm:license>%s<rpm:license>\n' % fmt['license']
+        res += '    <rpm:license>%s</rpm:license>\n' % fmt['license']
 
         if fmt['vendor']:
-            res += '    <rpm:vendor>%s<rpm:vendor>\n' % fmt['vendor']
+            res += '    <rpm:vendor>%s</rpm:vendor>\n' % fmt['vendor']
 
-        res += '    <rpm:group>%s<rpm:group>\n' % fmt['group']
-        res += '    <rpm:buildhost>%s<rpm:buildhost>\n' % fmt['buildhost']
-        res += '    <rpm:sourcerpm>%s<rpm:sourcerpm>\n' % fmt['sourcerpm']
+        res += '    <rpm:group>%s</rpm:group>\n' % fmt['group']
+        res += '    <rpm:buildhost>%s</rpm:buildhost>\n' % fmt['buildhost']
+        res += '    <rpm:sourcerpm>%s</rpm:sourcerpm>\n' % fmt['sourcerpm']
 
         res += '    <rpm:header-range start="%s" end="%s"/>\n' % (
             fmt['header_start'], fmt['header_end'])
@@ -574,14 +595,62 @@ def header_to_primary(header, sha256, mtime, location, header_start, header_end)
 
     return nerv, package
 
+
+def generate_repomd(filelists_str, primary_str, revision):
+    filelists_gz = gzip_string(filelists_str)
+    primary_gz = gzip_string(primary_str)
+
+    filelists_str_sha256 = string_checksum(filelists_str, 'sha256')
+    primary_str_sha256 = string_checksum(primary_str, 'sha256')
+
+    filelists_gz_sha256 = string_checksum(filelists_gz, 'sha256')
+    primary_gz_sha256 = string_checksum(primary_gz, 'sha256')
+
+    filelists_name = 'repodata/%s-filelists.xml.gz' % filelists_gz_sha256
+    primary_name = 'repodata/%s-primary.xml.gz' % primary_gz_sha256
+
+    nowdt = datetime.datetime.now()
+    nowtuple = nowdt.timetuple()
+    nowtimestamp = time.mktime(nowtuple)
+
+    res = ""
+
+    res += '<?xml version="1.0" encoding="UTF-8"?>\n'
+    res += '<repomd xmlns="http://linux.duke.edu/metadata/repo" xmlns:rpm="http://linux.duke.edu/metadata/rpm">\n'
+
+    res += '  <revision>%s</revision>\n' % revision
+
+    res += '  <data type="filelists">\n'
+    res += '    <checksum type="sha256">%s</checksum>\n' % filelists_gz_sha256
+    res += '    <open-checksum type="sha256">%s</open-checksum>\n' % filelists_str_sha256
+    res += '    <location href="%s"/>\n' % filelists_name
+    res += '    <timestamp>%s</timestamp>\n' % int(nowtimestamp)
+    res += '    <size>%s</size>\n' % len(filelists_gz)
+    res += '    <open-size>%s</open-size>\n' % len(filelists_str)
+    res += '  </data>\n'
+
+    res += '  <data type="primary">\n'
+    res += '    <checksum type="sha256">%s</checksum>\n' % primary_gz_sha256
+    res += '    <open-checksum type="sha256">%s</open-checksum>\n' % primary_str_sha256
+    res += '    <location href="%s"/>\n' % primary_name
+    res += '    <timestamp>%s</timestamp>\n' % int(nowtimestamp)
+    res += '    <size>%s</size>\n' % len(primary_gz)
+    res += '    <open-size>%s</open-size>\n' % len(primary_str)
+    res += '  </data>\n'
+
+    res += '</repomd>\n'
+
+    return res
+
 def update_repo(storage):
     filelists = {}
     primary = {}
+    revision = "0"
 
     if storage.exists('repodata/repomd.xml'):
         data = storage.read_file('repodata/repomd.xml')
 
-        filelists, primary = parse_repomd(data)
+        filelists, primary, revision = parse_repomd(data)
 
         data = storage.read_file(filelists['location'])
         filelists = parse_filelists(gunzip_string(data))
@@ -629,8 +698,24 @@ def update_repo(storage):
         primary[nerv] = prim
         filelists[nerv] = flist
 
-        print(dump_filelists(filelists))
-        print(dump_primary(primary))
+    revision = str(int(revision) + 1)
+
+    filelists_str = dump_filelists(filelists)
+    primary_str = dump_primary(primary)
+
+    repomd_str = generate_repomd(filelists_str, primary_str, revision)
+
+    filelists_gz = gzip_string(filelists_str)
+    primary_gz = gzip_string(primary_str)
+    filelists_gz_sha256 = string_checksum(filelists_gz, 'sha256')
+    primary_gz_sha256 = string_checksum(primary_gz, 'sha256')
+    filelists_name = 'repodata/%s-filelists.xml.gz' % filelists_gz_sha256
+    primary_name = 'repodata/%s-primary.xml.gz' % primary_gz_sha256
+
+    storage.write_file(filelists_name, filelists_gz)
+    storage.write_file(primary_name, primary_gz)
+    storage.write_file('repodata/repomd.xml', repomd_str)
+
 
 def main():
     stor = storage.FilesystemStorage(sys.argv[1])
