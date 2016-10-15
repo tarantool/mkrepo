@@ -67,10 +67,10 @@ code > span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Inf
 
 <div class="container">
 <h1 id="create-rpm-and-deb-repositories-in-s3">Create RPM and DEB repositories in S3</h1>
-<p><code>mkrepo</code> allows you to maintain an RPM or DEB repository is S3, and periodically regenerate metadata.</p>
-<p>The typical use case is when you have a CI pipeline that pushes new packages to an S3 storage and you don't want your CI to bother with regenerating repository metadata.</p>
+<p><code>mkrepo</code> is a repository generator with pluggable backends, which allows you to maintain an RPM or DEB repository on various storages, like local filesystem or S3, and periodically regenerate metadata.</p>
+<p>Use it in tandem with your favourite CI system to produce a better pipeline. <code>mkrepo</code> helps you to get rid of ad-hoc cron jobs.</p>
 <p>As a bonus, <code>mkrepo</code> supports on-premises S3 servers like <a href="http://minio.io">Minio</a>.</p>
-<p><em>NB: currently only works on CentOS</em></p>
+<p>Works on Linux and OS X. Should also work on BSD and Windows, but I haven't checked.</p>
 <h2 id="quickstart">Quickstart</h2>
 <p>Create an s3 bucket named e.g. <code>builds</code> and put a sample package <code>package.rpm</code> to <code>s3://builds/rpmrepo/Packages</code>. Then do the following:</p>
 <div class="sourceCode"><pre class="sourceCode bash"><code class="sourceCode bash"><span class="kw">./mkrepo.py</span> s3://builds/rpmrepo</code></pre></div>
@@ -78,10 +78,7 @@ code > span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Inf
 <h2 id="dependencies">Dependencies</h2>
 <p>Python libraries:</p>
 <ul>
-<li>yum</li>
 <li>boto3</li>
-<li>createrepo</li>
-<li>rpmUtils</li>
 </ul>
 <h2 id="command-line-reference">Command-line reference</h2>
 <p><code>mkrepo</code> parses your <code>~/.aws/config</code> and reads secret key and region settings. So you may skip them in command line invocation in case you have aws config.</p>
