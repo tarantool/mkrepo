@@ -65,7 +65,7 @@ def flags_to_str(flags):
 
 
 SIGNATURE_TAG_TABLE = {
-    1000: "SIZE",
+    1000: "SIG_SIZE",
     1001: "LEMD5_1",
     1002: "PGP",
     1003: "LEMD5_2",
@@ -78,8 +78,8 @@ SIGNATURE_TAG_TABLE = {
     269: "SHA1",
     267: "DSA",
     268: "RSA",
-    270: "LONGSIZE",
-    271: "LONGARCHIVESIZE"
+    270: "SIG_LONGSIZE",
+    271: "SIG_LONGARCHIVESIZE"
 }
 
 HEADER_TAG_TABLE = {

@@ -42,7 +42,6 @@ def file_checksum(file_name, checksum_type):
     with open(file_name, "rb") as f:
         for chunk in iter(lambda: f.read(4096), b""):
             h.update(chunk)
-
     return h.hexdigest()
 
 def string_checksum(data, checksum_type):
@@ -52,6 +51,30 @@ def string_checksum(data, checksum_type):
         h.update(chunk)
 
     return h.hexdigest()
+
+def gpg_sign_string(data, keyname = None, inline = False):
+    cmd = "gpg -a"
+
+    if inline:
+        cmd += " --clearsign"
+    else:
+        cmd += " --detach-sign"
+
+
+    if keyname != None:
+        cmd += " --default-key='%s'" % keyname
+
+    proc = subprocess.Popen(cmd,
+                            shell = True,
+                            stdout=subprocess.PIPE,
+                            stdin=subprocess.PIPE,
+                            stderr=subprocess.STDOUT)
+    stdout = proc.communicate(input=data)[0]
+
+    if proc.returncode != 0:
+        raise RuntimeError("Failed to sign file: %s" % stdout)
+
+    return stdout
 
 
 def sign_metadata(repomdfile):
@@ -116,9 +139,10 @@ def parse_filelists(data):
         name = child.attrib['name']
         arch = child.attrib['arch']
         version = child.find('filelists:version', namespaces)
+
         version = {'ver': version.attrib['ver'],
                    'rel': version.attrib['rel'],
-                   'epoch': version.attrib['epoch']}
+                   'epoch': version.attrib.get('epoch', '0')}
 
         files = []
         for node in child.findall('filelists:file', namespaces):
@@ -149,8 +173,10 @@ def dump_filelists(filelists):
 
         ver = package['version']
 
-        res += '  <version epoch="%s" ver="%s" rel="%s"/>\n' % (
-            ver['epoch'], ver['ver'], ver['rel'])
+        res += '  <version '
+        components = ' '.join(['%s="%s"' % (c, ver[c])
+                               for c in ['epoch', 'ver', 'rel'] if ver[c]])
+        res += '%s/>\n' % components
 
         for fileentry in package['files']:
             if fileentry['type'] == 'file':
@@ -185,12 +211,16 @@ def parse_primary(data):
         time = child.find('primary:time', namespaces)
         file_time = time.attrib['file']
         build_time = time.attrib['build']
+        size = child.find('primary:size', namespaces)
+        package_size = size.attrib['package']
+        installed_size = size.attrib['installed']
+        archive_size = size.attrib['archive']
         location = child.find('primary:location', namespaces).attrib['href']
 
         version = child.find('primary:version', namespaces)
         version = {'ver': version.attrib['ver'],
                    'rel': version.attrib['rel'],
-                   'epoch': version.attrib['epoch']}
+                   'epoch': version.attrib.get('epoch', '0')}
 
         # format
         fmt = child.find('primary:format', namespaces)
@@ -304,6 +334,8 @@ def parse_primary(data):
                    'version': version, 'summary': summary,
                    'description': description, 'packager': packager,
                    'url': url, 'file_time': file_time, 'build_time': build_time,
+                   'package_size': package_size, 'installed_size': installed_size,
+                   'archive_size': archive_size,
                    'location': location, 'format': format_dict}
 
         nerv = (name, version['epoch'], version['rel'], version['ver'])
@@ -322,8 +354,10 @@ def dump_primary(primary):
         res += '  <arch>%s</arch>\n' % package['arch']
 
         ver = package['version']
-        res += '  <version epoch="%s" ver="%s" rel="%s"/>\n' % (
-            ver['epoch'], ver['ver'], ver['rel'])
+        res += '  <version '
+        components = ' '.join(['%s="%s"' % (c, ver[c])
+                               for c in ['epoch', 'ver', 'rel'] if ver[c]])
+        res += '%s/>\n' % components
 
         res += '  <checksum type="sha256" pkgid="YES">%s</checksum>\n' % \
             package['checksum']
@@ -335,6 +369,11 @@ def dump_primary(primary):
         res += '  <url>%s</url>\n' % (package['url'] or '')
         res += '  <time file="%s" build="%s"/>\n' % (package['file_time'],
                                                      package['build_time'])
+        res += '  <size package="%s" installed="%s" archive="%s"/>\n' % (
+            package['package_size'],
+            package['installed_size'],
+            package['archive_size']
+        )
         res += '  <location href="%s"/>\n' % package['location']
 
         fmt = package['format']
@@ -346,7 +385,7 @@ def dump_primary(primary):
         if fmt['vendor']:
             res += '    <rpm:vendor>%s</rpm:vendor>\n' % fmt['vendor']
 
-        res += '    <rpm:group>%s</rpm:group>\n' % fmt['group']
+        res += '    <rpm:group>%s</rpm:group>\n' % (fmt['group'] or '')
         res += '    <rpm:buildhost>%s</rpm:buildhost>\n' % fmt['buildhost']
         res += '    <rpm:sourcerpm>%s</rpm:sourcerpm>\n' % fmt['sourcerpm']
 
@@ -420,7 +459,7 @@ def header_to_filelists(header, sha256):
     pkgid = sha256
     name = header['NAME']
     arch = header['ARCH']
-    epoch = header.get('EPOCH', None)
+    epoch = header.get('EPOCH', '0')
     rel = header.get('RELEASE', None)
     ver = header['VERSION']
     version = {'ver': ver, 'rel': rel, 'epoch': epoch}
@@ -458,7 +497,7 @@ def header_to_filelists(header, sha256):
 
 
 
-def header_to_primary(header, sha256, mtime, location, header_start, header_end):
+def header_to_primary(header, sha256, mtime, location, header_start, header_end, size):
     name = header['NAME']
     arch = header['ARCH']
     summary = header['SUMMARY']
@@ -466,10 +505,15 @@ def header_to_primary(header, sha256, mtime, location, header_start, header_end)
     packager = header.get('PACKAGER', None)
     build_time = header['BUILDTIME']
     url = header['URL']
-    epoch = header.get('EPOCH', None)
+    epoch = header.get('EPOCH', '0')
     rel = header.get('RELEASE', None)
     ver = header['VERSION']
     version = {'ver': ver, 'rel': rel, 'epoch': epoch}
+
+    package_size = size
+    installed_size = header['SIZE']
+    archive_size = header['PAYLOADSIZE']
+
 
     # format
 
@@ -589,6 +633,8 @@ def header_to_primary(header, sha256, mtime, location, header_start, header_end)
                'version': version, 'summary': summary,
                'description': description, 'packager': packager,
                'url': url, 'file_time': str(int(mtime)), 'build_time': build_time,
+               'package_size': package_size, 'installed_size': installed_size,
+               'archive_size': archive_size,
                'location': location, 'format': format_dict}
 
     nerv = (name, version['epoch'], version['rel'], version['ver'])
@@ -642,7 +688,7 @@ def generate_repomd(filelists_str, primary_str, revision):
 
     return res
 
-def update_repo(storage):
+def update_repo(storage, sign):
     filelists = {}
     primary = {}
     revision = "0"
@@ -681,7 +727,6 @@ def update_repo(storage):
         mtime = file_to_add[1]
         print("Adding: '%s'" % file_path)
 
-
         tmpdir = tempfile.mkdtemp()
         storage.download_file(file_path, os.path.join(tmpdir, 'package.rpm'))
 
@@ -689,10 +734,15 @@ def update_repo(storage):
         header = rpminfo.parse_file(os.path.join(tmpdir, 'package.rpm'))
         sha256 = file_checksum(os.path.join(tmpdir, 'package.rpm'), "sha256")
 
+        statinfo = os.stat(os.path.join(tmpdir, 'package.rpm'))
+        size = statinfo.st_size
+
+
         shutil.rmtree(tmpdir)
 
         nerv, prim = header_to_primary(header, sha256, mtime, file_path,
-                                       rpminfo.header_start, rpminfo.header_end)
+                                       rpminfo.header_start, rpminfo.header_end,
+                                       size)
         _, flist = header_to_filelists(header, sha256)
 
         primary[nerv] = prim
@@ -715,6 +765,10 @@ def update_repo(storage):
     storage.write_file(filelists_name, filelists_gz)
     storage.write_file(primary_name, primary_gz)
     storage.write_file('repodata/repomd.xml', repomd_str)
+
+    if sign:
+        repomd_str_signed = gpg_sign_string(repomd_str)
+        storage.write_file('repodata/repomd.xml.asc', repomd_str_signed)
 
 
 def main():
