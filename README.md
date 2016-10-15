@@ -1,15 +1,15 @@
 # Create RPM and DEB repositories in S3
 
-`mkrepo` allows you to maintain an RPM or DEB repository is S3,
-and periodically regenerate metadata.
+`mkrepo` is a repository generator with pluggable backends,
+which allows you to maintain an RPM or DEB repository on various
+storages, like local filesystem or S3, and periodically regenerate metadata.
 
-The typical use case is when you have a CI pipeline that pushes new
-packages to an S3 storage and you don't want your CI to bother with
-regenerating repository metadata.
+Use it in tandem with your favourite CI system to produce a better pipeline.
+`mkrepo` helps you to get rid of ad-hoc cron jobs.
 
 As a bonus, `mkrepo` supports on-premises S3 servers like [Minio](http://minio.io).
 
-*NB: currently only works on CentOS*
+Works on Linux and OS X. Should also work on BSD and Windows, but I haven't checked.
 
 ## Quickstart
 
@@ -25,10 +25,7 @@ After this, you will find all metadata generated in `s3://builds/rpmrepo/repodat
 
 Python libraries:
 
-* yum
 * boto3
-* createrepo
-* rpmUtils
 
 ## Command-line reference
 
