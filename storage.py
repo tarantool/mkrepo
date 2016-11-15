@@ -3,6 +3,7 @@
 import os
 import errno
 import shutil
+import urllib
 import boto3
 import StringIO
 import time
@@ -203,3 +204,61 @@ class S3Storage(Storage):
                 for fileobj in result.get('Contents'):
                     filepath = os.path.relpath(fileobj.get('Key'), dirname)
                     yield os.path.normpath(os.path.join(subdir or '/', filepath))
+
+
+class HttpStorage(Storage):
+    def __init__(self, baseuri, basedir='.', timeout=10):
+        """RO Http storage implementation"""
+        self.basedir = basedir
+        if not baseuri.startswith('http://') and \
+                not baseuri.startswith('https://'):
+            baseuri = "http://%s" % baseuri
+        self.baseuri = baseuri
+        self.timeout = timeout
+
+    def read_file(self, key):
+        fullpath = os.path.join(self.basedir, key)
+        with open(fullpath) as f:
+            return f.read()
+
+    def write_file(self, key, data):
+        fullpath = os.path.join(self.basedir, key)
+
+        if not os.path.exists(self.basedir):
+            raise RuntimeError("Base directory doesn't exist: '%s'" %
+                               self.basedir)
+
+        dirname = os.path.dirname(fullpath)
+
+        if not os.path.exists(dirname):
+            _mkdir_recursive(dirname)
+
+        with open(fullpath, 'w+') as f:
+            f.write(data)
+
+    def download_file(self, key, destination, params=None):
+        status, data = self.get(key, params)
+        if status != 200:
+            return False
+        self.write_file(destination, data)
+        return True
+
+    def mtime(self, key):
+        """All files are fresh"""
+        return time.time()
+
+    def get(self, path, params=None, deep=0):
+        args = [self.baseuri, path]
+        if params is not None:
+            args.extend(['?', urllib.urlencode(params)])
+
+        opener = urllib.FancyURLopener({"timeout": self.timeout})
+        ret, data = opener.open(''.join(args)), None
+        if ret.getcode() == 200:
+            data = ret.read()
+
+        return ret.getcode(), data
+
+    def exists(self, key, params=None):
+        status, _ = self.get(key, params)
+        return status == 200
