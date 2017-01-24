@@ -8,7 +8,9 @@ import boto3
 import StringIO
 import time
 
+
 class Storage:
+
     def __init__(self):
         pass
 
@@ -36,6 +38,7 @@ class Storage:
     def files(self, subdir=None):
         raise NotImplementedError()
 
+
 def _mkdir_recursive(path):
     try:
         os.makedirs(path)
@@ -45,7 +48,9 @@ def _mkdir_recursive(path):
         else:
             raise
 
+
 class FilesystemStorage(Storage):
+
     def __init__(self, basedir='.'):
         self.basedir = basedir
 
@@ -103,7 +108,7 @@ class FilesystemStorage(Storage):
 
         return os.path.exists(fullpath)
 
-    def files(self, subdir = None):
+    def files(self, subdir=None):
         basedir = self.basedir
 
         if subdir is not None:
@@ -113,7 +118,9 @@ class FilesystemStorage(Storage):
             for filename in files:
                 yield os.path.relpath(os.path.join(dirname, filename), self.basedir)
 
+
 class S3Storage(Storage):
+
     def __init__(self,
                  endpoint,
                  bucket,
@@ -133,11 +140,10 @@ class S3Storage(Storage):
                                        aws_secret_access_key=aws_secret_access_key,
                                        region_name=aws_region)
 
-
     def read_file(self, key):
         fullkey = os.path.normpath(os.path.join(self.prefix, key.lstrip('/')))
 
-        s3obj = self.resource.Object(self.bucket,fullkey)
+        s3obj = self.resource.Object(self.bucket, fullkey)
 
         buf = StringIO.StringIO()
         s3obj.download_fileobj(buf)
@@ -146,7 +152,7 @@ class S3Storage(Storage):
     def write_file(self, key, data):
         fullkey = os.path.normpath(os.path.join(self.prefix, key.lstrip('/')))
 
-        s3obj = self.resource.Object(self.bucket,fullkey)
+        s3obj = self.resource.Object(self.bucket, fullkey)
 
         buf = StringIO.StringIO()
         buf.write(data)
@@ -188,7 +194,7 @@ class S3Storage(Storage):
         return len(objs) > 0 and objs[0].key == fullkey
 
     def files(self, subdir=None):
-        dirname = os.path.join('/', self.prefix)
+        dirname = self.prefix
 
         if subdir is not None:
             dirname = os.path.join(dirname, subdir.lstrip('/'))
@@ -207,6 +213,7 @@ class S3Storage(Storage):
 
 
 class HttpStorage(Storage):
+
     def __init__(self, baseuri, basedir='.', timeout=10):
         """RO Http storage implementation"""
         self.basedir = basedir

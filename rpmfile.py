@@ -21,10 +21,10 @@ RPMSENSE_PROVIDES = (1 << 4)
 RPMSENSE_CONFLICTS = (1 << 5)
 RPMSENSE_OBSOLETES = (1 << 7)
 RPMSENSE_INTERP = (1 << 8),
-RPMSENSE_SCRIPT_PRE = ((1 << 9)| RPMSENSE_ANY )
-RPMSENSE_SCRIPT_POST = ((1 << 10)| RPMSENSE_ANY )
-RPMSENSE_SCRIPT_PREUN = ((1 << 11)| RPMSENSE_ANY )
-RPMSENSE_SCRIPT_POSTUN = ((1 << 12)| RPMSENSE_ANY )
+RPMSENSE_SCRIPT_PRE = ((1 << 9) | RPMSENSE_ANY)
+RPMSENSE_SCRIPT_POST = ((1 << 10) | RPMSENSE_ANY)
+RPMSENSE_SCRIPT_PREUN = ((1 << 11) | RPMSENSE_ANY)
+RPMSENSE_SCRIPT_POSTUN = ((1 << 12) | RPMSENSE_ANY)
 RPMSENSE_SCRIPT_VERIFY = (1 << 13)
 RPMSENSE_FIND_REQUIRES = (1 << 14)
 RPMSENSE_FIND_PROVIDES = (1 << 15)
@@ -36,11 +36,12 @@ RPMSENSE_SCRIPT_PREP = (1 << 20)
 RPMSENSE_SCRIPT_BUILD = (1 << 21)
 RPMSENSE_SCRIPT_INSTALL = (1 << 22)
 RPMSENSE_SCRIPT_CLEAN = (1 << 23)
-RPMSENSE_RPMLIB = ((1 << 24) | RPMSENSE_ANY )
+RPMSENSE_RPMLIB = ((1 << 24) | RPMSENSE_ANY)
 RPMSENSE_TRIGGERPREIN = (1 << 25)
 RPMSENSE_KEYRING = (1 << 26)
 RPMSENSE_PATCHES = (1 << 27)
 RPMSENSE_CONFIG = (1 << 28)
+
 
 def flags_to_str(flags):
     flags = flags & 0x0e
@@ -61,7 +62,6 @@ def flags_to_str(flags):
         return None
     else:
         raise RuntimeError("Unknown flags: %d" % flags)
-
 
 
 SIGNATURE_TAG_TABLE = {
@@ -445,7 +445,6 @@ class RpmInfo(object):
 
         return data
 
-
     def parse_file(self, filename):
         with open(filename, 'rb') as f:
             magic = struct.unpack('>I', f.read(4))[0]
@@ -459,7 +458,7 @@ class RpmInfo(object):
                                     "minimum supported version '%d.%d'") %
                                    ((ver_major, ver_minor) + RPM_VER_MIN))
 
-            f.seek(OLD_STYLE_HEADER_SIZE) # size of old-style header
+            f.seek(OLD_STYLE_HEADER_SIZE)  # size of old-style header
 
             signature = self.parse_header(f, SIGNATURE_TAG_TABLE)
 
@@ -476,7 +475,6 @@ def main():
     data = i.parse_file(sys.argv[1])
     for key, value in data.items():
         print("%s: %s" % (key, str(value)))
-
 
 
 if __name__ == '__main__':
