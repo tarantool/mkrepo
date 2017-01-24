@@ -5,6 +5,7 @@ import storage
 import debrepo
 import rpmrepo
 
+
 def is_deb_repo(stor):
     result = False
     for _ in stor.files("pool/"):
@@ -13,6 +14,7 @@ def is_deb_repo(stor):
 
     return result
 
+
 def is_rpm_repo(stor):
     result = False
     for _ in stor.files("Packages/"):
@@ -20,6 +22,7 @@ def is_rpm_repo(stor):
         break
 
     return result
+
 
 def update_repo(path, args):
     stor = None
@@ -42,7 +45,6 @@ def update_repo(path, args):
     else:
         stor = storage.FilesystemStorage(path)
 
-
     if is_deb_repo(stor):
         print "Updating deb repository: %s" % path
         debrepo.update_repo(stor, args.sign)
@@ -51,6 +53,7 @@ def update_repo(path, args):
         rpmrepo.update_repo(stor, args.sign)
     else:
         print "Unknown repository: %s" % path
+
 
 def main():
     parser = argparse.ArgumentParser()

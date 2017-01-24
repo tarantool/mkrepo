@@ -25,11 +25,13 @@ try:
 except:
     import xml.etree.ElementTree as ET
 
+
 def gzip_string(data):
     out = StringIO.StringIO()
     with gzip.GzipFile(fileobj=out, mode="w") as fobj:
         fobj.write(data)
     return out.getvalue()
+
 
 def gunzip_string(data):
     fobj = StringIO.StringIO(data)
@@ -37,12 +39,14 @@ def gunzip_string(data):
 
     return decompressed.read()
 
+
 def file_checksum(file_name, checksum_type):
     h = hashlib.new(checksum_type)
     with open(file_name, "rb") as f:
         for chunk in iter(lambda: f.read(4096), b""):
             h.update(chunk)
     return h.hexdigest()
+
 
 def string_checksum(data, checksum_type):
     fobj = StringIO.StringIO(data)
@@ -52,7 +56,8 @@ def string_checksum(data, checksum_type):
 
     return h.hexdigest()
 
-def gpg_sign_string(data, keyname = None, inline = False):
+
+def gpg_sign_string(data, keyname=None, inline=False):
     cmd = "gpg -a"
 
     if inline:
@@ -60,12 +65,11 @@ def gpg_sign_string(data, keyname = None, inline = False):
     else:
         cmd += " --detach-sign"
 
-
     if keyname != None:
         cmd += " --default-key='%s'" % keyname
 
     proc = subprocess.Popen(cmd,
-                            shell = True,
+                            shell=True,
                             stdout=subprocess.PIPE,
                             stdin=subprocess.PIPE,
                             stderr=subprocess.STDOUT)
@@ -86,6 +90,7 @@ def sign_metadata(repomdfile):
     except subprocess.CalledProcessError as e:
         print ("Unable to sign repository metadata '%s'" % (repomdfile))
         exit(1)
+
 
 def setup_repository(repo):
     """Make sure a repo is present at repopath"""
@@ -116,7 +121,8 @@ def parse_repomd(data):
         for key in ['checksum', 'open-checksum',
                     'timestamp', 'size', 'open-size']:
             result[key] = child.find('repo:' + key, namespaces).text
-        result['location'] = child.find('repo:location', namespaces).attrib['href']
+        result['location'] = child.find(
+            'repo:location', namespaces).attrib['href']
 
         if child.attrib['type'] == 'filelists':
             filelists = result
@@ -124,6 +130,7 @@ def parse_repomd(data):
             primary = result
 
     return filelists, primary, revision
+
 
 def parse_filelists(data):
     root = ET.fromstring(data)
@@ -158,14 +165,15 @@ def parse_filelists(data):
         nerv = (name, version['epoch'], version['rel'], version['ver'])
         packages[nerv] = package
 
-
     return packages
+
 
 def dump_filelists(filelists):
     res = ""
 
     res += '<?xml version="1.0" encoding="UTF-8"?>\n'
-    res += '<filelists xmlns="http://linux.duke.edu/metadata/filelists" packages="%d">\n' % len(filelists)
+    res += '<filelists xmlns="http://linux.duke.edu/metadata/filelists" packages="%d">\n' % len(
+        filelists)
 
     for package in filelists.values():
         res += '<package pkgid="%s" name="%s" arch="%s">\n' % (
@@ -189,6 +197,7 @@ def dump_filelists(filelists):
     res += "</filelists>\n"
 
     return res
+
 
 def parse_primary(data):
     root = ET.fromstring(data)
@@ -298,7 +307,8 @@ def parse_primary(data):
             obsoletes_ver = entry.attrib.get('ver', None)
             obsoletes_flags = entry.attrib.get('flags', None)
 
-            nerv = (obsoletes_name, obsoletes_epoch, obsoletes_rel, obsoletes_ver)
+            nerv = (obsoletes_name, obsoletes_epoch,
+                    obsoletes_rel, obsoletes_ver)
 
             obsoletes_dict[nerv] = {'name': obsoletes_name,
                                     'epoch': obsoletes_epoch,
@@ -315,7 +325,6 @@ def parse_primary(data):
             if 'type' in node.attrib and node.attrib['type'] == 'dir':
                 file_type = 'dir'
             files.append({'type': file_type, 'name': file_name})
-
 
         # result package
         format_dict = {'license': format_license,
@@ -342,11 +351,13 @@ def parse_primary(data):
         packages[nerv] = package
     return packages
 
+
 def dump_primary(primary):
     res = ""
 
     res += '<?xml version="1.0" encoding="UTF-8"?>\n'
-    res += '<metadata xmlns="http://linux.duke.edu/metadata/common" xmlns:rpm="http://linux.duke.edu/metadata/rpm" packages="%d">\n' % len(primary)
+    res += '<metadata xmlns="http://linux.duke.edu/metadata/common" xmlns:rpm="http://linux.duke.edu/metadata/rpm" packages="%d">\n' % len(
+        primary)
 
     for package in primary.values():
         res += '<package type="rpm">\n'
@@ -363,8 +374,10 @@ def dump_primary(primary):
             package['checksum']
 
         res += '  <summary>%s</summary>\n' % escape(package['summary'] or '')
-        res += '  <description>%s</description>\n' % escape(package['description'] or '')
-        res += '  <packager>%s</packager>\n' % escape(package['packager'] or '')
+        res += '  <description>%s</description>\n' % escape(
+            package['description'] or '')
+        res += '  <packager>%s</packager>\n' % escape(
+            package['packager'] or '')
 
         res += '  <url>%s</url>\n' % (package['url'] or '')
         res += '  <time file="%s" build="%s"/>\n' % (package['file_time'],
@@ -403,7 +416,6 @@ def dump_primary(primary):
 
             res += '      <rpm:entry ' + ' '.join(entry) + '/>\n'
 
-
         res += '    </rpm:provides>\n'
 
         res += '    <rpm:requires>\n'
@@ -417,7 +429,6 @@ def dump_primary(primary):
 
             res += '      <rpm:entry ' + ' '.join(entry) + '/>\n'
 
-
         res += '    </rpm:requires>\n'
 
         res += '    <rpm:obsoletes>\n'
@@ -430,7 +441,6 @@ def dump_primary(primary):
                     entry.append('%s="%s"' % (component, obsoletes[component]))
 
             res += '      <rpm:entry ' + ' '.join(entry) + '/>\n'
-
 
         res += '    </rpm:obsoletes>\n'
 
@@ -446,7 +456,7 @@ def parse_ver_str(ver_str):
     if not ver_str:
         return (None, None, None)
 
-    expr = "^(\d+:)?([^-]*)(-[^-]*)?$"
+    expr = r'^(\d+:)?([^-]*)(-[^-]*)?$'
     match = re.match(expr, ver_str)
     if not match:
         raise RuntimeError("Can't parse version: '%s'" % ver_str)
@@ -454,6 +464,7 @@ def parse_ver_str(ver_str):
     ver = match.group(2)
     rel = match.group(3)[1:] if match.group(3) else None
     return (epoch, ver, rel)
+
 
 def header_to_filelists(header, sha256):
     pkgid = sha256
@@ -464,12 +475,21 @@ def header_to_filelists(header, sha256):
     ver = header['VERSION']
     version = {'ver': ver, 'rel': rel, 'epoch': epoch}
 
-    dirnames = header['DIRNAMES']
-    classdict = header['CLASSDICT']
-
-    basenames = header['BASENAMES']
-    dirindexes = header['DIRINDEXES']
-    fileclasses = header['FILECLASS']
+    dirnames = header.get('DIRNAMES', [])
+    if not isinstance(dirnames, list):
+        dirnames = [dirnames]
+    classdict = header.get('CLASSDICT', [])
+    if not isinstance(classdict, list):
+        classdict = [classdict]
+    basenames = header.get('BASENAMES', [])
+    if not isinstance(basenames, list):
+        basenames = [basenames]
+    dirindexes = header.get('DIRINDEXES', [])
+    if not isinstance(dirindexes, list):
+        dirindexes = [dirindexes]
+    fileclasses = header.get('FILECLASS', [])
+    if not isinstance(fileclasses, list):
+        fileclasses = [fileclasses]
 
     files = []
 
@@ -496,7 +516,6 @@ def header_to_filelists(header, sha256):
     return nerv, package
 
 
-
 def header_to_primary(header, sha256, mtime, location, header_start, header_end, size):
     name = header['NAME']
     arch = header['ARCH']
@@ -513,7 +532,6 @@ def header_to_primary(header, sha256, mtime, location, header_start, header_end,
     package_size = size
     installed_size = header['SIZE']
     archive_size = header['PAYLOADSIZE']
-
 
     # format
 
@@ -595,17 +613,21 @@ def header_to_primary(header, sha256, mtime, location, header_start, header_end,
         nerv = (obsoletes_name, obsoletes_epoch, obsoletes_rel, obsoletes_ver)
 
         obsoletes_dict[nerv] = {'name': obsoletes_name,
-                               'epoch': obsoletes_epoch,
-                               'rel': obsoletes_rel,
-                               'ver': obsoletes_ver,
-                               'flags': obsoletes_flags}
+                                'epoch': obsoletes_epoch,
+                                'rel': obsoletes_rel,
+                                'ver': obsoletes_ver,
+                                'flags': obsoletes_flags}
 
     # files
-
-    dirnames = header['DIRNAMES']
-
-    basenames = header['BASENAMES']
-    dirindexes = header['DIRINDEXES']
+    dirnames = header.get('DIRNAMES', [])
+    if not isinstance(dirnames, list):
+        dirnames = [dirnames]
+    basenames = header.get('BASENAMES', [])
+    if not isinstance(basenames, list):
+        basenames = [basenames]
+    dirindexes = header.get('DIRINDEXES', [])
+    if not isinstance(dirindexes, list):
+        dirindexes = [dirindexes]
 
     files = []
     for entry in zip(basenames, dirindexes):
@@ -688,6 +710,7 @@ def generate_repomd(filelists_str, primary_str, revision):
 
     return res
 
+
 def update_repo(storage, sign):
     filelists = {}
     primary = {}
@@ -709,7 +732,7 @@ def update_repo(storage, sign):
         recorded_files.add((package['location'], float(package['file_time'])))
 
     existing_files = set()
-    expr = "^.*\.rpm$"
+    expr = r'^.*\.rpm$'
     for file_path in storage.files('.'):
         match = re.match(expr, file_path)
 
@@ -736,7 +759,6 @@ def update_repo(storage, sign):
 
         statinfo = os.stat(os.path.join(tmpdir, 'package.rpm'))
         size = statinfo.st_size
-
 
         shutil.rmtree(tmpdir)
 

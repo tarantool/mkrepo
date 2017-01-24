@@ -16,6 +16,7 @@ import time
 import datetime
 import email
 
+
 def file_checksum(file_name, checksum_type):
     h = hashlib.new(checksum_type)
     with open(file_name, "rb") as f:
@@ -24,11 +25,13 @@ def file_checksum(file_name, checksum_type):
 
     return h.hexdigest()
 
+
 def rfc_2822_now_str():
     nowdt = datetime.datetime.now()
     nowtuple = nowdt.timetuple()
     nowtimestamp = time.mktime(nowtuple)
     return email.utils.formatdate(nowtimestamp)
+
 
 def gzip_string(data):
     out = StringIO.StringIO()
@@ -36,12 +39,13 @@ def gzip_string(data):
         fobj.write(data)
     return out.getvalue()
 
+
 def bz2_string(data):
     buf = bytearray(data)
     return bz2.compress(buf)
 
 
-def gpg_sign_string(data, keyname = None, inline = False):
+def gpg_sign_string(data, keyname=None, inline=False):
     cmd = "gpg -a"
 
     if inline:
@@ -49,12 +53,11 @@ def gpg_sign_string(data, keyname = None, inline = False):
     else:
         cmd += " --detach-sign"
 
-
     if keyname != None:
         cmd += " --default-key='%s'" % keyname
 
     proc = subprocess.Popen(cmd,
-                            shell = True,
+                            shell=True,
                             stdout=subprocess.PIPE,
                             stdin=subprocess.PIPE,
                             stderr=subprocess.STDOUT)
@@ -65,7 +68,9 @@ def gpg_sign_string(data, keyname = None, inline = False):
 
     return stdout
 
+
 class Package(object):
+
     def __init__(self, component='main', arch='amd64'):
         self.component = component
         self.arch = arch
@@ -129,6 +134,7 @@ class Package(object):
 
 
 class PackageList(object):
+
     def __init__(self, component='main', arch='x86_64'):
         self.component = component
         self.arch = arch
@@ -174,8 +180,10 @@ class PackageList(object):
 
         return '\n\n'.join(result) + '\n'
 
+
 class Release(object):
-    def __init__(self, codename = None, origin = None, suite = None):
+
+    def __init__(self, codename=None, origin=None, suite=None):
         self.fields = collections.OrderedDict()
 
         if codename:
@@ -231,8 +239,9 @@ class Release(object):
 
         return "\n".join(result) + '\n'
 
+
 def split_pkg_path(pkg_path):
-    expr = "^.*[-~](?P<dist>[^-~]*)[-~](?P<arch>[^-~]*)[-~][^-~]*.deb$"
+    expr = r'^.*[-~](?P<dist>[^-~]*)[-~](?P<arch>[^-~]*)[-~][^-~]*.deb$'
 
     match = re.match(expr, pkg_path)
 
@@ -251,7 +260,7 @@ def update_repo(storage, sign):
     dists = set()
     package_lists = collections.defaultdict(PackageList)
 
-    expr = "^dists/([^/]*)/Release$"
+    expr = r'^dists/([^/]*)/Release$'
     for file_path in storage.files('dists'):
         match = re.match(expr, file_path)
 
@@ -282,11 +291,12 @@ def update_repo(storage, sign):
     for package_list in package_lists.itervalues():
         for package in package_list.packages:
             if 'FileTime' in package.fields:
-                mtimes[package['Filename'].lstrip('/')] = float(package['FileTime'])
+                mtimes[package['Filename'].lstrip(
+                    '/')] = float(package['FileTime'])
 
     tmpdir = tempfile.mkdtemp()
 
-    expr = "^.*\.deb$"
+    expr = r'^.*\.deb$'
     for file_path in storage.files('pool'):
         file_path = file_path.lstrip('/')
 
@@ -314,7 +324,6 @@ def update_repo(storage, sign):
 
         storage.download_file(file_path, os.path.join(tmpdir, 'package.deb'))
 
-
         package = Package()
         local_file = os.path.join(tmpdir, 'package.deb')
         package.parse_deb(local_file)
@@ -333,7 +342,6 @@ def update_repo(storage, sign):
         if package in packages:
             packages.remove(package)
         packages.add(package)
-
 
     checksums = collections.defaultdict(dict)
     sizes = collections.defaultdict(dict)
@@ -374,7 +382,6 @@ def update_repo(storage, sign):
 
                 checksums[dist][(checksum_type, path)] = h.hexdigest()
 
-
     creation_date = rfc_2822_now_str()
 
     for dist in dists:
@@ -409,5 +416,6 @@ def update_repo(storage, sign):
         if sign:
             release_str_signature = gpg_sign_string(release_str)
             release_str_inline = gpg_sign_string(release_str, inline=True)
-            storage.write_file('dists/%s/Release.gpg' % dist, release_str_signature)
+            storage.write_file('dists/%s/Release.gpg' %
+                               dist, release_str_signature)
             storage.write_file('dists/%s/InRelease' % dist, release_str_inline)
