@@ -518,15 +518,15 @@ def header_to_filelists(header, sha256):
 
 def header_to_primary(header, sha256, mtime, location, header_start, header_end, size):
     name = header['NAME']
-    arch = header['ARCH']
-    summary = header['SUMMARY']
-    description = header['DESCRIPTION']
+    arch = header.get('ARCH', '')
+    summary = header.get('SUMMARY', '')
+    description = header.get('DESCRIPTION', '')
     packager = header.get('PACKAGER', None)
-    build_time = header['BUILDTIME']
-    url = header['URL']
+    build_time = header.get('BUILDTIME', '')
+    url = header.get('URL', '')
     epoch = header.get('EPOCH', '0')
     rel = header.get('RELEASE', None)
-    ver = header['VERSION']
+    ver = header.get('VERSION', '')
     version = {'ver': ver, 'rel': rel, 'epoch': epoch}
 
     package_size = size
