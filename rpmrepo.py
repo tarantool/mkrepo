@@ -22,7 +22,7 @@ from xml.sax.saxutils import escape
 
 try:
     import xml.etree.cElementTree as ET
-except:
+except BaseException:
     import xml.etree.ElementTree as ET
 
 
@@ -65,7 +65,7 @@ def gpg_sign_string(data, keyname=None, inline=False):
     else:
         cmd += " --detach-sign"
 
-    if keyname != None:
+    if keyname is not None:
         cmd += " --default-key='%s'" % keyname
 
     proc = subprocess.Popen(cmd,
@@ -339,13 +339,22 @@ def parse_primary(data):
                        'obsoletes': obsoletes_dict,
                        'files': files}
 
-        package = {'checksum': checksum, 'name': name, 'arch': arch,
-                   'version': version, 'summary': summary,
-                   'description': description, 'packager': packager,
-                   'url': url, 'file_time': file_time, 'build_time': build_time,
-                   'package_size': package_size, 'installed_size': installed_size,
-                   'archive_size': archive_size,
-                   'location': location, 'format': format_dict}
+        package = {
+            'checksum': checksum,
+            'name': name,
+            'arch': arch,
+            'version': version,
+            'summary': summary,
+            'description': description,
+            'packager': packager,
+            'url': url,
+            'file_time': file_time,
+            'build_time': build_time,
+            'package_size': package_size,
+            'installed_size': installed_size,
+            'archive_size': archive_size,
+            'location': location,
+            'format': format_dict}
 
         nerv = (name, version['epoch'], version['rel'], version['ver'])
         packages[nerv] = package
@@ -516,7 +525,14 @@ def header_to_filelists(header, sha256):
     return nerv, package
 
 
-def header_to_primary(header, sha256, mtime, location, header_start, header_end, size):
+def header_to_primary(
+        header,
+        sha256,
+        mtime,
+        location,
+        header_start,
+        header_end,
+        size):
     name = header['NAME']
     arch = header['ARCH']
     summary = header['SUMMARY']
@@ -651,13 +667,23 @@ def header_to_primary(header, sha256, mtime, location, header_start, header_end,
                    'obsoletes': obsoletes_dict,
                    'files': files}
 
-    package = {'checksum': sha256, 'name': name, 'arch': arch,
-               'version': version, 'summary': summary,
-               'description': description, 'packager': packager,
-               'url': url, 'file_time': str(int(mtime)), 'build_time': build_time,
-               'package_size': package_size, 'installed_size': installed_size,
-               'archive_size': archive_size,
-               'location': location, 'format': format_dict}
+    package = {
+        'checksum': sha256,
+        'name': name,
+        'arch': arch,
+        'version': version,
+        'summary': summary,
+        'description': description,
+        'packager': packager,
+        'url': url,
+        'file_time': str(
+            int(mtime)),
+        'build_time': build_time,
+        'package_size': package_size,
+        'installed_size': installed_size,
+        'archive_size': archive_size,
+        'location': location,
+        'format': format_dict}
 
     nerv = (name, version['epoch'], version['rel'], version['ver'])
 
@@ -797,6 +823,7 @@ def main():
     stor = storage.FilesystemStorage(sys.argv[1])
 
     update_repo(stor)
+
 
 if __name__ == '__main__':
     main()

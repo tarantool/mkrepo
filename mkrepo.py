@@ -88,5 +88,6 @@ def main():
     for path in paths:
         update_repo(path, args)
 
+
 if __name__ == '__main__':
     main()

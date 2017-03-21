@@ -53,7 +53,7 @@ def gpg_sign_string(data, keyname=None, inline=False):
     else:
         cmd += " --detach-sign"
 
-    if keyname != None:
+    if keyname is not None:
         cmd += " --default-key='%s'" % keyname
 
     proc = subprocess.Popen(cmd,
@@ -165,7 +165,7 @@ class PackageList(object):
 
     def parse_file(self, filename):
         filetype = mimetypes.guess_type(filename)
-        if filetype[1] == None:
+        if filetype[1] is None:
             self.parse_plain_file(filename)
         elif filetype[1] == 'gzip':
             self.parse_gzip_file(filename)

@@ -135,10 +135,12 @@ class S3Storage(Storage):
                                    aws_access_key_id=aws_access_key_id,
                                    aws_secret_access_key=aws_secret_access_key,
                                    region_name=aws_region)
-        self.resource = boto3.resource('s3', endpoint_url=endpoint,
-                                       aws_access_key_id=aws_access_key_id,
-                                       aws_secret_access_key=aws_secret_access_key,
-                                       region_name=aws_region)
+        self.resource = boto3.resource(
+            's3',
+            endpoint_url=endpoint,
+            aws_access_key_id=aws_access_key_id,
+            aws_secret_access_key=aws_secret_access_key,
+            region_name=aws_region)
 
     def read_file(self, key):
         fullkey = os.path.normpath(os.path.join(self.prefix, key.lstrip('/')))

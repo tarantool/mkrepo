@@ -343,7 +343,7 @@ HEADER_TAG_TABLE = {
 class RpmInfo(object):
 
     def _read_header_header(self, f):
-        magic = struct.unpack('>I',  '\x00' + f.read(3))[0]
+        magic = struct.unpack('>I', '\x00' + f.read(3))[0]
         if magic != RPM_HEADER_HEADER_MAGIC:
             raise RuntimeError("Wrong header header magic: '%s'" % hex(magic))
 
