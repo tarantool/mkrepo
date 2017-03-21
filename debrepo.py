@@ -41,7 +41,7 @@ def gzip_string(data):
 
 
 def bz2_string(data):
-    buf = bytearray(data)
+    buf = bytearray(data, 'utf-8')
     return bz2.compress(buf)
 
 
