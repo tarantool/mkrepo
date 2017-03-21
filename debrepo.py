@@ -241,8 +241,11 @@ class Release(object):
 
 
 def split_pkg_path(pkg_path):
-    expr = r'^.*[-~](?P<dist>[^-~]*)[-~](?P<arch>[^-~]*)[-~][^-~]*.deb$'
 
+    # We assume that DEB file format is the following, with optional <revision>, <dist> and <arch>
+    # <package>_<version>.<revision>-<dist>_<arch>.deb
+
+    expr = r'^(?P<package>[^_]+)_(?P<version>[0-9]+\.[0-9]+\.[0-9]+\-[0-9]+)(\.(?P<revision>[^\-]+))?([\-]?(?P<dist>[^_]+))?_(?P<arch>[^\.]+)\.deb$'
     match = re.match(expr, pkg_path)
 
     if not match:
@@ -250,8 +253,21 @@ def split_pkg_path(pkg_path):
 
     component = 'main'
 
+    #package = match.group('package')
+    # if package is None:
+    #    package = 'none'
+    #version = match.group('version')
+    # if version is None:
+    #    version = '0.0.0-0'
+    #revision = match.group('revision')
+    # if revision is None:
+    #    revision = ''
     dist = match.group('dist')
+    if dist is None:
+        dist = 'all'
     arch = match.group('arch')
+    if arch is None:
+        arch = 'all'
 
     return (dist, component, arch)
 
