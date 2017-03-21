@@ -14,6 +14,7 @@ import StringIO
 import rpmfile
 import hashlib
 import json
+import itertools
 
 import datetime
 import time
@@ -620,7 +621,7 @@ def header_to_primary(
     obsoleteversion = header.get('OBSOLETEVERSION', [])
     obsoleteflags = header.get('OBSOLETEFLAGS', [])
 
-    for entry in zip(obsoletename, obsoleteversion, obsoleteflags):
+    for entry in zip(obsoletename, obsoleteversion, itertools.repeat(obsoleteflags)):
         obsoletes_name = entry[0]
         obsoletes_epoch, obsoletes_ver, obsoletes_rel = \
             parse_ver_str(entry[1])
