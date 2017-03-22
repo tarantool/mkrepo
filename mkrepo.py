@@ -31,8 +31,6 @@ tmpdir = None
 def update_repo(path, args):
     stor = None
 
-    tmpdir = args.temp_dir
-
     if path.startswith('s3://'):
         path = path[len('s3://'):]
 
@@ -53,10 +51,10 @@ def update_repo(path, args):
 
     if is_deb_repo(stor):
         print "Updating deb repository: %s" % path
-        debrepo.update_repo(stor, args.sign)
+        debrepo.update_repo(stor, args.sign, args.temp_dir)
     elif is_rpm_repo(stor):
         print "Updating rpm repository: %s" % path
-        rpmrepo.update_repo(stor, args.sign)
+        rpmrepo.update_repo(stor, args.sign, args.temp_dir)
     else:
         print "Unknown repository: %s" % path
 

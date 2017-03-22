@@ -272,7 +272,7 @@ def split_pkg_path(pkg_path):
     return (dist, component, arch)
 
 
-def update_repo(storage, sign):
+def update_repo(storage, sign, tempdir):
     dists = set()
     package_lists = collections.defaultdict(PackageList)
 
@@ -310,7 +310,7 @@ def update_repo(storage, sign):
                 mtimes[package['Filename'].lstrip(
                     '/')] = float(package['FileTime'])
 
-    tmpdir = tempfile.mkdtemp('', 'tmp', tmpdir)
+    tmpdir = tempfile.mkdtemp('', 'tmp', tempdir)
 
     expr = r'^.*\.deb$'
     for file_path in storage.files('pool'):

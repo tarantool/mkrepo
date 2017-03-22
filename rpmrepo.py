@@ -98,7 +98,7 @@ def setup_repository(repo):
     if repo._grab.storage.exists("repodata/repomd.xml"):
         return
 
-    tmpdir = tempfile.mkdtemp('', 'tmp', tmpdir)
+    tmpdir = tempfile.mkdtemp()
     cmd = ['createrepo', '--no-database', tmpdir]
     subprocess.check_output(cmd)
     repo._grab.syncdir(os.path.join(tmpdir, "repodata"), "repodata")
@@ -741,7 +741,7 @@ def generate_repomd(filelists_str, primary_str, revision):
     return res
 
 
-def update_repo(storage, sign):
+def update_repo(storage, sign, tempdir):
     filelists = {}
     primary = {}
     revision = "0"
@@ -780,7 +780,7 @@ def update_repo(storage, sign):
         mtime = file_to_add[1]
         print("Adding: '%s'" % file_path)
 
-        tmpdir = tempfile.mkdtemp('', 'tmp', tmpdir)
+        tmpdir = tempfile.mkdtemp('', 'tmp', tempdir)
         storage.download_file(file_path, os.path.join(tmpdir, 'package.rpm'))
 
         rpminfo = rpmfile.RpmInfo()
