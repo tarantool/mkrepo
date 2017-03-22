@@ -24,8 +24,14 @@ def is_rpm_repo(stor):
     return result
 
 
+# directory used to store temporary artifacts (None = Automatic)
+tmpdir = None
+
+
 def update_repo(path, args):
     stor = None
+
+    tmpdir = args.temp_dir
 
     if path.startswith('s3://'):
         path = path[len('s3://'):]
@@ -57,6 +63,12 @@ def update_repo(path, args):
 
 def main():
     parser = argparse.ArgumentParser()
+
+    parser.add_argument(
+        '--temp-dir',
+        default=None,
+        help='directory used to store temporary artifacts'
+    )
 
     parser.add_argument(
         '--s3-access-key-id', help='access key for connecting to S3')

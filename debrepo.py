@@ -310,7 +310,7 @@ def update_repo(storage, sign):
                 mtimes[package['Filename'].lstrip(
                     '/')] = float(package['FileTime'])
 
-    tmpdir = tempfile.mkdtemp()
+    tmpdir = tempfile.mkdtemp('', 'tmp', tmpdir)
 
     expr = r'^.*\.deb$'
     for file_path in storage.files('pool'):
