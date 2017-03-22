@@ -24,10 +24,6 @@ def is_rpm_repo(stor):
     return result
 
 
-# directory used to store temporary artifacts (None = Automatic)
-tmpdir = None
-
-
 def update_repo(path, args):
     stor = None
 
