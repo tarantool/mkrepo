@@ -77,8 +77,8 @@ class Package(object):
         self.fields = collections.OrderedDict()
 
     def parse_deb(self, debfile):
-        cmd = 'tar zxf ' + debfile + ' --to-stdout control.tar.gz |' + \
-              'tar -zxf - --to-stdout control'
+        cmd = 'ar -p ' + debfile + ' control.tar.gz |' + \
+              'tar -xzf - --to-stdout ./control'
 
         control = subprocess.check_output(cmd, shell=True)
         self.parse_string(control.strip())
