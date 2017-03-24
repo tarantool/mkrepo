@@ -185,7 +185,7 @@ class S3Storage(Storage):
 
     def exists(self, key):
         fullkey = os.path.normpath(
-            os.path.join('/', self.prefix, key.lstrip('/')))
+            os.path.join(self.prefix, key.lstrip('/')))
 
         bucket = self.resource.Bucket(self.bucket)
 
