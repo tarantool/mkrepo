@@ -603,6 +603,9 @@ def header_to_primary(header, sha256, mtime, location, header_start, header_end,
     obsoleteversion = header.get('OBSOLETEVERSION', [])
     obsoleteflags = header.get('OBSOLETEFLAGS', [])
 
+    if not isinstance(obsoleteflags, list):
+        obsoleteflags = [obsoleteflags]
+
     for entry in zip(obsoletename, obsoleteversion, obsoleteflags):
         obsoletes_name = entry[0]
         obsoletes_epoch, obsoletes_ver, obsoletes_rel = \
