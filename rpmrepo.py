@@ -93,12 +93,12 @@ def sign_metadata(repomdfile):
         exit(1)
 
 
-def setup_repository(repo):
+def setup_repository(repo, tempdir):
     """Make sure a repo is present at repopath"""
     if repo._grab.storage.exists("repodata/repomd.xml"):
         return
 
-    tmpdir = tempfile.mkdtemp()
+    tmpdir = tempfile.mkdtemp('', 'tmp', tempdir)
     cmd = ['createrepo', '--no-database', tmpdir]
     subprocess.check_output(cmd)
     repo._grab.syncdir(os.path.join(tmpdir, "repodata"), "repodata")
