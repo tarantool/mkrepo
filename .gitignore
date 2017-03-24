@@ -72,3 +72,6 @@ ENV/
 
 # Rope project settings
 .ropeproject
+
+# Temporary folder
+.mkrepo/

@@ -253,15 +253,6 @@ def split_pkg_path(pkg_path):
 
     component = 'main'
 
-    #package = match.group('package')
-    # if package is None:
-    #    package = 'none'
-    #version = match.group('version')
-    # if version is None:
-    #    version = '0.0.0-0'
-    #revision = match.group('revision')
-    # if revision is None:
-    #    revision = ''
     dist = match.group('dist')
     if dist is None:
         dist = 'all'

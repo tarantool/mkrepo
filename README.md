@@ -33,13 +33,17 @@ Python libraries:
 So you may skip them in command line invocation in case you have aws config.
 
 ``` bash
-mkrepo.py [-h] [--s3-access-key-id S3_ACCESS_KEY_ID]
-          [--s3-secret-access-key S3_SECRET_ACCESS_KEY]
-          [--s3-endpoint S3_ENDPOINT] [--s3-region S3_REGION]
-          [--sign]
-          path [path ...]
+  mkrepo.py [-h] 
+            [--temp-dir TEMP_DIR]
+            [--s3-access-key-id S3_ACCESS_KEY_ID]
+            [--s3-secret-access-key S3_SECRET_ACCESS_KEY]
+            [--s3-endpoint S3_ENDPOINT]
+            [--s3-region S3_REGION]
+            [--sign]
+            path [path ...]
 ```
 
+* `--temp-dir` - /(optional)/directory used to store temporary artifacts (default is ./.mkrepo)
 * `--s3-access-key-id` - /(optional)/ specify S3 access key ID
 * `--s3-secret-access-key` - /(optional)/ specify S3 secret key
 * `--s3-endpoint` - /(optional)/ specify S3 server URI
