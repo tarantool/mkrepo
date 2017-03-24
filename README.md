@@ -43,7 +43,7 @@ So you may skip them in command line invocation in case you have aws config.
             path [path ...]
 ```
 
-* `--temp-dir` - /(optional)/directory used to store temporary artifacts
+* `--temp-dir` - /(optional)/directory used to store temporary artifacts (default is ./.mkrepo)
 * `--s3-access-key-id` - /(optional)/ specify S3 access key ID
 * `--s3-secret-access-key` - /(optional)/ specify S3 secret key
 * `--s3-endpoint` - /(optional)/ specify S3 server URI
