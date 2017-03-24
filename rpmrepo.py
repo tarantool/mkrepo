@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-import boto3
 import os
 import sys
 import re
@@ -745,16 +744,20 @@ def update_repo(storage, sign, tempdir):
     filelists = {}
     primary = {}
     revision = "0"
+    initial_filelists = None
+    initial_primary = None
 
     if storage.exists('repodata/repomd.xml'):
         data = storage.read_file('repodata/repomd.xml')
 
         filelists, primary, revision = parse_repomd(data)
 
-        data = storage.read_file(filelists['location'])
+        initial_filelists = filelists['location']
+        data = storage.read_file(initial_filelists)
         filelists = parse_filelists(gunzip_string(data))
 
-        data = storage.read_file(primary['location'])
+        initial_primary = primary['location']
+        data = storage.read_file(initial_primary)
         primary = parse_primary(gunzip_string(data))
 
     recorded_files = set()
@@ -817,6 +820,9 @@ def update_repo(storage, sign, tempdir):
     storage.write_file(filelists_name, filelists_gz)
     storage.write_file(primary_name, primary_gz)
     storage.write_file('repodata/repomd.xml', repomd_str)
+
+    storage.delete_file(initial_filelists)
+    storage.delete_file(initial_primary)
 
     if sign:
         repomd_str_signed = gpg_sign_string(repomd_str)
