@@ -23,7 +23,7 @@ from xml.sax.saxutils import escape
 
 try:
     import xml.etree.cElementTree as ET
-except BaseException:
+except ImportError:
     import xml.etree.ElementTree as ET
 
 
