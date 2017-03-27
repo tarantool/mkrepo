@@ -60,7 +60,7 @@ def main():
 
     parser.add_argument(
         '--temp-dir',
-        default="./.tmp",
+        default="./.mkrepo",
         help='directory used to store temporary artifacts'
     )
 
