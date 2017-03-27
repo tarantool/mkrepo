@@ -4,6 +4,7 @@ import argparse
 import storage
 import debrepo
 import rpmrepo
+import os
 
 
 def is_deb_repo(stor):
@@ -26,6 +27,9 @@ def is_rpm_repo(stor):
 
 def update_repo(path, args):
     stor = None
+
+    if not os.path.exists(args.temp_dir):
+        os.mkdir(args.temp_dir)
 
     if path.startswith('s3://'):
         path = path[len('s3://'):]
@@ -60,9 +64,8 @@ def main():
 
     parser.add_argument(
         '--temp-dir',
-        default="./.mkrepo",
-        help='directory used to store temporary artifacts'
-    )
+        default=".mkrepo",
+        help='directory used to store temporary artifacts')
 
     parser.add_argument(
         '--s3-access-key-id', help='access key for connecting to S3')
