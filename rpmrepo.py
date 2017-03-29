@@ -821,8 +821,10 @@ def update_repo(storage, sign, tempdir):
     storage.write_file(primary_name, primary_gz)
     storage.write_file('repodata/repomd.xml', repomd_str)
 
-    storage.delete_file(initial_filelists)
-    storage.delete_file(initial_primary)
+    if initial_filelists:
+        storage.delete_file(initial_filelists)
+    if initial_primary:
+        storage.delete_file(initial_primary)
 
     if sign:
         repomd_str_signed = gpg_sign_string(repomd_str)
