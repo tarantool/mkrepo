@@ -58,7 +58,7 @@ def string_checksum(data, checksum_type):
 
 
 def gpg_sign_string(data, keyname=None, inline=False):
-    cmd = "gpg -a"
+    cmd = "gpg --armor --digest-algo SHA256"
 
     if inline:
         cmd += " --clearsign"
@@ -83,7 +83,7 @@ def gpg_sign_string(data, keyname=None, inline=False):
 
 def sign_metadata(repomdfile):
     """Requires a proper ~/.rpmmacros file. See <http://fedoranews.org/tchung/gpg/>"""
-    cmd = ["gpg", "--detach-sign", "--armor", repomdfile]
+    cmd = ["gpg", "--detach-sign", "--armor", "--digest-algo SHA256", repomdfile]
     try:
         subprocess.check_call(cmd)
         print ("Successfully signed repository metadata file")

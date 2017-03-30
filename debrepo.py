@@ -46,7 +46,7 @@ def bz2_string(data):
 
 
 def gpg_sign_string(data, keyname=None, inline=False):
-    cmd = "gpg -a"
+    cmd = "gpg --armor --digest-algo SHA256"
 
     if inline:
         cmd += " --clearsign"
