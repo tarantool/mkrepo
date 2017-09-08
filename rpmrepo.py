@@ -693,10 +693,7 @@ def header_to_primary(
     return nerv, package
 
 
-def generate_repomd(filelists_str, primary_str, revision):
-    filelists_gz = gzip_string(filelists_str)
-    primary_gz = gzip_string(primary_str)
-
+def generate_repomd(filelists_str, filelists_gz, primary_str, primary_gz, revision):
     filelists_str_sha256 = string_checksum(filelists_str, 'sha256')
     primary_str_sha256 = string_checksum(primary_str, 'sha256')
 
@@ -807,11 +804,12 @@ def update_repo(storage, sign, tempdir):
 
     filelists_str = dump_filelists(filelists)
     primary_str = dump_primary(primary)
-
-    repomd_str = generate_repomd(filelists_str, primary_str, revision)
-
     filelists_gz = gzip_string(filelists_str)
     primary_gz = gzip_string(primary_str)
+
+    repomd_str = generate_repomd(filelists_str, filelists_gz,
+                                 primary_str, primary_gz, revision)
+
     filelists_gz_sha256 = string_checksum(filelists_gz, 'sha256')
     primary_gz_sha256 = string_checksum(primary_gz, 'sha256')
     filelists_name = 'repodata/%s-filelists.xml.gz' % filelists_gz_sha256
