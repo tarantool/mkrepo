@@ -405,7 +405,7 @@ def dump_primary(primary):
         res += '    <rpm:license>%s</rpm:license>\n' % fmt['license']
 
         if fmt['vendor']:
-            res += '    <rpm:vendor>%s</rpm:vendor>\n' % fmt['vendor']
+            res += '    <rpm:vendor>%s</rpm:vendor>\n' % escape(fmt['vendor'])
 
         res += '    <rpm:group>%s</rpm:group>\n' % (fmt['group'] or '')
         res += '    <rpm:buildhost>%s</rpm:buildhost>\n' % fmt['buildhost']
