@@ -2,8 +2,8 @@
 from distutils.core import setup
 setup(
     name='mkrepo',
-    packages=['mkrepo'],
-    version='0.1.0',
+    packages=[''],
+    version='0.1.1',
     description='Maintain deb and rpm repos on s3',
     author='Konstantin Nazarov',
     author_email='mail@kn.am',
