@@ -15,7 +15,7 @@ import hashlib
 import time
 import datetime
 import email
-
+import sys
 
 def file_checksum(file_name, checksum_type):
     h = hashlib.new(checksum_type)
@@ -313,16 +313,17 @@ def update_repo(storage, sign, tempdir):
             continue
 
         components = split_pkg_path(file_path)
-        dist, _, _ = components
-        dists.add(dist)
 
         if not components:
             print("Failed to parse file name: '%s'" % file_path)
+            sys.exit(1)
+
+        dist, _, _ = components
+        dists.add(dist)
 
         mtime = storage.mtime(file_path)
-
         if file_path in mtimes:
-            if mtime == mtimes[file_path]:
+            if str(mtime) == str(mtimes[file_path]):
                 print "Skipping: '%s'" % file_path
                 continue
             print "Updating: '%s'" % file_path
