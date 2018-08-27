@@ -589,6 +589,8 @@ def header_to_primary(
     requirename = header.get('REQUIRENAME', [])
     requireversion = header.get('REQUIREVERSION', [])
     requireflags = header.get('REQUIREFLAGS', [])
+    if type(requireflags) is not list:
+        requireflags = [requireflags]
 
     for entry in zip(requirename, requireversion, requireflags):
         requires_name = entry[0]
