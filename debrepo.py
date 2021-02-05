@@ -252,15 +252,19 @@ def split_pkg_path(pkg_path):
     expr = r'^(?P<package>[^_]+)_(?P<version>[0-9]+(\.[0-9]+){2,3}(\.g[a-f0-9]+)?\-[0-9])(\.(?P<revision>[^\-]+))?([\-]?(?P<dist>[^_]+))?_(?P<arch>[^\.]+)\.deb$'
     match_package = re.match(expr, pkg_path)
 
-    if not match:
+    # The distribution information may be missing in the file name,
+    # but present in the path.
+    match_path = re.match('^pool/(?P<dist>[^/]+)/main', pkg_path)
+
+    if not match_package:
         return None
 
     component = 'main'
 
-    dist = match.group('dist')
+    dist = match_package.group('dist') or match_path.group('dist')
     if dist is None:
         dist = 'all'
-    arch = match.group('arch')
+    arch = match_package.group('arch')
     if arch is None:
         arch = 'all'
 
