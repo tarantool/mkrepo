@@ -324,11 +324,11 @@ def update_repo(storage, sign, tempdir):
         mtime = storage.mtime(file_path)
         if file_path in mtimes:
             if str(mtime) == str(mtimes[file_path]):
-                print "Skipping: '%s'" % file_path
+                print("Skipping: '%s'" % file_path)
                 continue
-            print "Updating: '%s'" % file_path
+            print("Updating: '%s'" % file_path)
         else:
-            print "Adding: '%s'" % file_path
+            print("Adding: '%s'" % file_path)
 
         storage.download_file(file_path, os.path.join(tmpdir, 'package.deb'))
 

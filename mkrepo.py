@@ -50,13 +50,13 @@ def update_repo(path, args):
         stor = storage.FilesystemStorage(path)
 
     if is_deb_repo(stor):
-        print "Updating deb repository: %s" % path
+        print("Updating deb repository: %s" % path)
         debrepo.update_repo(stor, args.sign, args.temp_dir)
     elif is_rpm_repo(stor):
-        print "Updating rpm repository: %s" % path
+        print("Updating rpm repository: %s" % path)
         rpmrepo.update_repo(stor, args.sign, args.temp_dir)
     else:
-        print "Unknown repository: %s" % path
+        print("Unknown repository: %s" % path)
 
 
 def main():
