@@ -249,8 +249,8 @@ def split_pkg_path(pkg_path):
     # We assume that DEB file format is the following, with optional <revision>, <dist> and <arch>
     # <package>_<version>.<revision>-<dist>_<arch>.deb
 
-    expr = r'^(?P<package>[^_]+)_(?P<version>[0-9]+\.[0-9]+\.[0-9]+\-[0-9]+)(\.(?P<revision>[^\-]+))?([\-]?(?P<dist>[^_]+))?_(?P<arch>[^\.]+)\.deb$'
-    match = re.match(expr, pkg_path)
+    expr = r'^(?P<package>[^_]+)_(?P<version>[0-9]+(\.[0-9]+){2,3}(\.g[a-f0-9]+)?\-[0-9])(\.(?P<revision>[^\-]+))?([\-]?(?P<dist>[^_]+))?_(?P<arch>[^\.]+)\.deb$'
+    match_package = re.match(expr, pkg_path)
 
     if not match:
         return None
