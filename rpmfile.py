@@ -343,7 +343,7 @@ HEADER_TAG_TABLE = {
 class RpmInfo(object):
 
     def _read_header_header(self, f):
-        magic = struct.unpack('>I', '\x00' + f.read(3))[0]
+        magic = struct.unpack('>I', b'\x00' + f.read(3))[0]
         if magic != RPM_HEADER_HEADER_MAGIC:
             raise RuntimeError("Wrong header header magic: '%s'" % hex(magic))
 
@@ -402,10 +402,10 @@ class RpmInfo(object):
                     value = value[0]
             elif type == 6:
                 char = None
-                string = ""
+                string = b''
                 while True:
                     char = f.read(1)
-                    if char == '\x00':
+                    if char == b'\x00':
                         break
                     string += char
                 value = string
@@ -415,10 +415,10 @@ class RpmInfo(object):
                 stringlist = []
                 for i in range(count):
                     char = None
-                    string = ""
+                    string = b''
                     while True:
                         char = f.read(1)
-                        if char == '\x00':
+                        if char == b'\x00':
                             break
                         string += char
                     stringlist.append(string)

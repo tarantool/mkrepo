@@ -10,7 +10,7 @@ import subprocess
 import re
 import os
 import tempfile
-import StringIO
+from io import BytesIO
 import hashlib
 import time
 import datetime
@@ -33,16 +33,15 @@ def rfc_2822_now_str():
     return email.utils.formatdate(nowtimestamp)
 
 
-def gzip_string(data):
-    out = StringIO.StringIO()
-    with gzip.GzipFile(fileobj=out, mode="w") as fobj:
+def gzip_bytes(data):
+    out = BytesIO()
+    with gzip.GzipFile(fileobj=out, mode="wb") as fobj:
         fobj.write(data)
     return out.getvalue()
 
 
-def bz2_string(data):
-    buf = bytearray(data, 'utf-8')
-    return bz2.compress(buf)
+def bz2_bytes(data):
+    return bz2.compress(data)
 
 
 def gpg_sign_string(data, keyname=None, inline=False):
@@ -81,7 +80,7 @@ class Package(object):
               'tar -xzf - --to-stdout ./control'
 
         control = subprocess.check_output(cmd, shell=True)
-        self.parse_string(control.strip())
+        self.parse_string(control.decode('utf-8').strip())
 
     def parse_string(self, data):
         key = None
@@ -278,7 +277,8 @@ def update_repo(storage, sign, tempdir):
         dists.add(dist)
 
         release = Release()
-        release.parse_string(storage.read_file('dists/%s/Release' % dist))
+        release.parse_string(storage.read_file('dists/%s/Release' %
+            dist).decode('utf-8'))
 
         components = release['Components'].split(' ')
         architectures = release['Architectures'].split(' ')
@@ -290,7 +290,7 @@ def update_repo(storage, sign, tempdir):
                 package_list = PackageList()
                 package_list.parse_string(
                     storage.read_file('dists/%s/%s/%s/Packages' %
-                                      (dist, component, subdir)))
+                        (dist, component, subdir)).decode('utf-8'))
 
                 package_lists[(dist, component, arch)] = package_list
 
@@ -371,12 +371,12 @@ def update_repo(storage, sign, tempdir):
         pkg_file = package_list.dump_string()
 
         pkg_file_gzip_path = '%s/%s/Packages.gz' % (component, subdir)
-        pkg_file_gzip = gzip_string(pkg_file)
+        pkg_file_gzip = gzip_bytes(pkg_file.encode('utf-8'))
 
         pkg_file_bz2_path = '%s/%s/Packages.bz2' % (component, subdir)
-        pkg_file_bz2 = bz2_string(pkg_file)
+        pkg_file_bz2 = bz2_bytes(pkg_file.encode('utf-8'))
 
-        storage.write_file(prefix + pkg_file_path, pkg_file)
+        storage.write_file(prefix + pkg_file_path, pkg_file.encode('utf-8'))
         storage.write_file(prefix + pkg_file_gzip_path, pkg_file_gzip)
         storage.write_file(prefix + pkg_file_bz2_path, pkg_file_bz2)
 
@@ -419,11 +419,13 @@ def update_repo(storage, sign, tempdir):
                 '\n' + '\n'.join(checksum_lines[checksum_name])
 
         release_str = release.dump_string()
-        storage.write_file('dists/%s/Release' % dist, release_str)
+        storage.write_file('dists/%s/Release' % dist,
+            release_str.encode('utf-8'))
 
         if sign:
             release_str_signature = gpg_sign_string(release_str)
             release_str_inline = gpg_sign_string(release_str, inline=True)
-            storage.write_file('dists/%s/Release.gpg' %
-                               dist, release_str_signature)
-            storage.write_file('dists/%s/InRelease' % dist, release_str_inline)
+            storage.write_file('dists/%s/Release.gpg' % dist,
+                release_str_signature.encode('utf-8'))
+            storage.write_file('dists/%s/InRelease' % dist,
+                release_str_inline.encode('utf-8'))

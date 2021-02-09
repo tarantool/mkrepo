@@ -9,7 +9,7 @@ import tempfile
 import shutil
 import storage
 import gzip
-import StringIO
+from io import BytesIO
 import rpmfile
 import hashlib
 import json
@@ -26,15 +26,15 @@ except ImportError:
     import xml.etree.ElementTree as ET
 
 
-def gzip_string(data):
-    out = StringIO.StringIO()
-    with gzip.GzipFile(fileobj=out, mode="w") as fobj:
+def gzip_bytes(data):
+    out = BytesIO()
+    with gzip.GzipFile(fileobj=out, mode="wb") as fobj:
         fobj.write(data)
     return out.getvalue()
 
 
-def gunzip_string(data):
-    fobj = StringIO.StringIO(data)
+def gunzip_bytes(data):
+    fobj = BytesIO(data)
     decompressed = gzip.GzipFile(fileobj=fobj)
 
     return decompressed.read()
@@ -48,8 +48,8 @@ def file_checksum(file_name, checksum_type):
     return h.hexdigest()
 
 
-def string_checksum(data, checksum_type):
-    fobj = StringIO.StringIO(data)
+def bytes_checksum(data, checksum_type):
+    fobj = BytesIO(data)
     h = hashlib.new(checksum_type)
     for chunk in iter(lambda: fobj.read(4096), b""):
         h.update(chunk)
@@ -475,13 +475,20 @@ def parse_ver_str(ver_str):
     return (epoch, ver, rel)
 
 
+def get_with_decode(dictionary, key, default='' , encoding='utf-8'):
+    res = dictionary.get(key, default)
+    if res:
+        res = res.decode(encoding)
+    return res
+
+
 def header_to_filelists(header, sha256):
     pkgid = sha256
-    name = header['NAME']
-    arch = header['ARCH']
+    name = get_with_decode(header, 'NAME', None)
+    arch = get_with_decode(header, 'ARCH', None)
     epoch = header.get('EPOCH', '0')
-    rel = header.get('RELEASE', None)
-    ver = header['VERSION']
+    rel = get_with_decode(header, 'RELEASE', None)
+    ver = get_with_decode(header, 'VERSION', None)
     version = {'ver': ver, 'rel': rel, 'epoch': epoch}
 
     dirnames = header.get('DIRNAMES', [])
@@ -503,8 +510,8 @@ def header_to_filelists(header, sha256):
     files = []
 
     for entry in zip(basenames, dirindexes, fileclasses):
-        filename = entry[0]
-        dirname = dirnames[entry[1]]
+        filename = entry[0].decode('utf-8')
+        dirname = dirnames[entry[1]].decode('utf-8')
 
         fileclass = classdict[entry[2]]
 
@@ -516,7 +523,7 @@ def header_to_filelists(header, sha256):
         files.append({'name': dirname + filename, 'type': filetype})
 
     for dirname in dirnames:
-        files.append({'name': dirname, 'type': 'dir'})
+        files.append({'name': dirname.decode('utf-8'), 'type': 'dir'})
 
     package = {'pkgid': pkgid, 'name': name, 'arch': arch,
                'version': version, 'files': files}
@@ -533,16 +540,16 @@ def header_to_primary(
         header_start,
         header_end,
         size):
-    name = header['NAME']
-    arch = header.get('ARCH', '')
-    summary = header.get('SUMMARY', '')
-    description = header.get('DESCRIPTION', '')
-    packager = header.get('PACKAGER', None)
+    name = get_with_decode(header, 'NAME', None)
+    arch = get_with_decode(header, 'ARCH')
+    summary = get_with_decode(header, 'SUMMARY')
+    description = get_with_decode(header, 'DESCRIPTION')
+    packager = get_with_decode(header, 'PACKAGER', None)
     build_time = header.get('BUILDTIME', '')
-    url = header.get('URL', '')
+    url = get_with_decode(header, 'URL')
     epoch = header.get('EPOCH', '0')
-    rel = header.get('RELEASE', None)
-    ver = header.get('VERSION', '')
+    rel = get_with_decode(header, 'RELEASE', None)
+    ver = get_with_decode(header, 'VERSION')
     version = {'ver': ver, 'rel': rel, 'epoch': epoch}
 
     package_size = size
@@ -551,11 +558,11 @@ def header_to_primary(
 
     # format
 
-    format_license = header.get('LICENSE', None)
-    format_vendor = header.get('VENDOR', None)
-    format_group = header.get('GROUP', None)
-    format_buildhost = header.get('BUILDHOST', None)
-    format_sourcerpm = header.get('SOURCERPM', None)
+    format_license = get_with_decode(header, 'LICENSE', None)
+    format_vendor = get_with_decode(header, 'VENDOR', None)
+    format_group = get_with_decode(header, 'GROUP', None)
+    format_buildhost = get_with_decode(header, 'BUILDHOST', None)
+    format_sourcerpm = get_with_decode(header, 'SOURCERPM', None)
     format_header_start = header_start
     format_header_end = header_end
 
@@ -570,9 +577,9 @@ def header_to_primary(
         provideflags = [provideflags]
 
     for entry in zip(providename, provideversion, provideflags):
-        provides_name = entry[0]
+        provides_name = entry[0].decode('utf-8')
         provides_epoch, provides_ver, provides_rel = \
-            parse_ver_str(entry[1])
+            parse_ver_str(entry[1].decode('utf-8'))
         provides_flags = rpmfile.flags_to_str(entry[2])
 
         nerv = (provides_name, provides_epoch, provides_rel, provides_ver)
@@ -593,9 +600,9 @@ def header_to_primary(
         requireflags = [requireflags]
 
     for entry in zip(requirename, requireversion, requireflags):
-        requires_name = entry[0]
+        requires_name = entry[0].decode('utf-8')
         requires_epoch, requires_ver, requires_rel = \
-            parse_ver_str(entry[1])
+            parse_ver_str(entry[1].decode('utf-8'))
         requires_flags = rpmfile.flags_to_str(entry[2])
 
         if entry[2] & rpmfile.RPMSENSE_RPMLIB:
@@ -626,9 +633,9 @@ def header_to_primary(
         obsoleteflags = [obsoleteflags]
 
     for entry in zip(obsoletename, obsoleteversion, obsoleteflags):
-        obsoletes_name = entry[0]
+        obsoletes_name = entry[0].decode('utf-8')
         obsoletes_epoch, obsoletes_ver, obsoletes_rel = \
-            parse_ver_str(entry[1])
+            parse_ver_str(entry[1].decode('utf-8'))
         obsoletes_flags = rpmfile.flags_to_str(entry[2])
 
         nerv = (obsoletes_name, obsoletes_epoch, obsoletes_rel, obsoletes_ver)
@@ -652,12 +659,12 @@ def header_to_primary(
 
     files = []
     for entry in zip(basenames, dirindexes):
-        filename = entry[0]
-        dirname = dirnames[entry[1]]
+        filename = entry[0].decode('utf-8')
+        dirname = dirnames[entry[1]].decode('utf-8')
         files.append({'name': dirname + filename, 'type': 'file'})
 
     for dirname in dirnames:
-        files.append({'name': dirname, 'type': 'dir'})
+        files.append({'name': dirname.decode('utf-8'), 'type': 'dir'})
 
     # result package
     format_dict = {'license': format_license,
@@ -696,11 +703,13 @@ def header_to_primary(
 
 
 def generate_repomd(filelists_str, filelists_gz, primary_str, primary_gz, revision):
-    filelists_str_sha256 = string_checksum(filelists_str, 'sha256')
-    primary_str_sha256 = string_checksum(primary_str, 'sha256')
+    filelists_bytes = filelists_str.encode('utf-8')
+    primary_bytes = primary_str.encode('utf-8')
+    filelists_str_sha256 = bytes_checksum(filelists_bytes, 'sha256')
+    primary_str_sha256 = bytes_checksum(primary_bytes, 'sha256')
 
-    filelists_gz_sha256 = string_checksum(filelists_gz, 'sha256')
-    primary_gz_sha256 = string_checksum(primary_gz, 'sha256')
+    filelists_gz_sha256 = bytes_checksum(filelists_gz, 'sha256')
+    primary_gz_sha256 = bytes_checksum(primary_gz, 'sha256')
 
     filelists_name = 'repodata/%s-filelists.xml.gz' % filelists_gz_sha256
     primary_name = 'repodata/%s-primary.xml.gz' % primary_gz_sha256
@@ -722,7 +731,7 @@ def generate_repomd(filelists_str, filelists_gz, primary_str, primary_gz, revisi
     res += '    <location href="%s"/>\n' % filelists_name
     res += '    <timestamp>%s</timestamp>\n' % int(nowtimestamp)
     res += '    <size>%s</size>\n' % len(filelists_gz)
-    res += '    <open-size>%s</open-size>\n' % len(filelists_str)
+    res += '    <open-size>%s</open-size>\n' % len(filelists_bytes)
     res += '  </data>\n'
 
     res += '  <data type="primary">\n'
@@ -731,7 +740,7 @@ def generate_repomd(filelists_str, filelists_gz, primary_str, primary_gz, revisi
     res += '    <location href="%s"/>\n' % primary_name
     res += '    <timestamp>%s</timestamp>\n' % int(nowtimestamp)
     res += '    <size>%s</size>\n' % len(primary_gz)
-    res += '    <open-size>%s</open-size>\n' % len(primary_str)
+    res += '    <open-size>%s</open-size>\n' % len(primary_bytes)
     res += '  </data>\n'
 
     res += '</repomd>\n'
@@ -753,11 +762,11 @@ def update_repo(storage, sign, tempdir):
 
         initial_filelists = filelists['location']
         data = storage.read_file(initial_filelists)
-        filelists = parse_filelists(gunzip_string(data))
+        filelists = parse_filelists(gunzip_bytes(data))
 
         initial_primary = primary['location']
         data = storage.read_file(initial_primary)
-        primary = parse_primary(gunzip_string(data))
+        primary = parse_primary(gunzip_bytes(data))
 
     recorded_files = set()
     for package in primary.values():
@@ -806,20 +815,20 @@ def update_repo(storage, sign, tempdir):
 
     filelists_str = dump_filelists(filelists)
     primary_str = dump_primary(primary)
-    filelists_gz = gzip_string(filelists_str)
-    primary_gz = gzip_string(primary_str)
+    filelists_gz = gzip_bytes(filelists_str.encode('utf-8'))
+    primary_gz = gzip_bytes(primary_str.encode('utf-8'))
 
     repomd_str = generate_repomd(filelists_str, filelists_gz,
                                  primary_str, primary_gz, revision)
 
-    filelists_gz_sha256 = string_checksum(filelists_gz, 'sha256')
-    primary_gz_sha256 = string_checksum(primary_gz, 'sha256')
+    filelists_gz_sha256 = bytes_checksum(filelists_gz, 'sha256')
+    primary_gz_sha256 = bytes_checksum(primary_gz, 'sha256')
     filelists_name = 'repodata/%s-filelists.xml.gz' % filelists_gz_sha256
     primary_name = 'repodata/%s-primary.xml.gz' % primary_gz_sha256
 
     storage.write_file(filelists_name, filelists_gz)
     storage.write_file(primary_name, primary_gz)
-    storage.write_file('repodata/repomd.xml', repomd_str)
+    storage.write_file('repodata/repomd.xml', repomd_str.encode('utf-8'))
 
     if initial_filelists:
         storage.delete_file(initial_filelists)
@@ -828,7 +837,8 @@ def update_repo(storage, sign, tempdir):
 
     if sign:
         repomd_str_signed = gpg_sign_string(repomd_str)
-        storage.write_file('repodata/repomd.xml.asc', repomd_str_signed)
+        storage.write_file('repodata/repomd.xml.asc',
+            repomd_str_signed.encode('utf-8'))
 
 
 def main():
