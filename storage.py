@@ -5,7 +5,7 @@ import errno
 import shutil
 import urllib
 import boto3
-import StringIO
+from io import BytesIO
 import time
 
 
@@ -56,7 +56,7 @@ class FilesystemStorage(Storage):
 
     def read_file(self, key):
         fullpath = os.path.join(self.basedir, key)
-        with open(fullpath) as f:
+        with open(fullpath, 'rb') as f:
             return f.read()
 
     def write_file(self, key, data):
@@ -71,7 +71,7 @@ class FilesystemStorage(Storage):
         if not os.path.exists(dirname):
             _mkdir_recursive(dirname)
 
-        with open(fullpath, 'w+') as f:
+        with open(fullpath, 'wb+') as f:
             f.write(data)
 
     def download_file(self, key, destination):
@@ -147,7 +147,7 @@ class S3Storage(Storage):
 
         s3obj = self.resource.Object(self.bucket, fullkey)
 
-        buf = StringIO.StringIO()
+        buf = BytesIO()
         s3obj.download_fileobj(buf)
         return buf.getvalue()
 
@@ -156,7 +156,7 @@ class S3Storage(Storage):
 
         s3obj = self.resource.Object(self.bucket, fullkey)
 
-        buf = StringIO.StringIO()
+        buf = BytesIO()
         buf.write(data)
         buf.seek(0)
 
@@ -227,7 +227,7 @@ class HttpStorage(Storage):
 
     def read_file(self, key):
         fullpath = os.path.join(self.basedir, key)
-        with open(fullpath) as f:
+        with open(fullpath, 'rb') as f:
             return f.read()
 
     def write_file(self, key, data):
@@ -242,7 +242,7 @@ class HttpStorage(Storage):
         if not os.path.exists(dirname):
             _mkdir_recursive(dirname)
 
-        with open(fullpath, 'w+') as f:
+        with open(fullpath, 'w+b') as f:
             f.write(data)
 
     def download_file(self, key, destination, params=None):
