@@ -60,7 +60,7 @@ def gpg_sign_string(data, keyname=None, inline=False):
                             stdout=subprocess.PIPE,
                             stdin=subprocess.PIPE,
                             stderr=subprocess.STDOUT)
-    stdout = proc.communicate(input=data)[0]
+    stdout = proc.communicate(input=data.encode('utf-8'))[0]
 
     if proc.returncode != 0:
         raise RuntimeError("Failed to sign file: %s" % stdout)
@@ -431,9 +431,7 @@ def update_repo(storage, sign, tempdir):
             release_str.encode('utf-8'))
 
         if sign:
-            release_str_signature = gpg_sign_string(release_str)
-            release_str_inline = gpg_sign_string(release_str, inline=True)
-            storage.write_file('dists/%s/Release.gpg' % dist,
-                release_str_signature.encode('utf-8'))
-            storage.write_file('dists/%s/InRelease' % dist,
-                release_str_inline.encode('utf-8'))
+            release_signature = gpg_sign_string(release_str)
+            release_inline = gpg_sign_string(release_str, inline=True)
+            storage.write_file('dists/%s/Release.gpg' % dist, release_signature)
+            storage.write_file('dists/%s/InRelease' % dist, release_inline)

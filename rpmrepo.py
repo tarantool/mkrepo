@@ -73,7 +73,7 @@ def gpg_sign_string(data, keyname=None, inline=False):
                             stdout=subprocess.PIPE,
                             stdin=subprocess.PIPE,
                             stderr=subprocess.STDOUT)
-    stdout = proc.communicate(input=data)[0]
+    stdout = proc.communicate(input=data.encode('utf-8'))[0]
 
     if proc.returncode != 0:
         raise RuntimeError("Failed to sign file: %s" % stdout)
@@ -836,9 +836,8 @@ def update_repo(storage, sign, tempdir):
         storage.delete_file(initial_primary)
 
     if sign:
-        repomd_str_signed = gpg_sign_string(repomd_str)
-        storage.write_file('repodata/repomd.xml.asc',
-            repomd_str_signed.encode('utf-8'))
+        repomd_signed = gpg_sign_string(repomd_str)
+        storage.write_file('repodata/repomd.xml.asc', repomd_signed)
 
 
 def main():
