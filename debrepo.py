@@ -53,7 +53,7 @@ def gpg_sign_string(data, keyname=None, inline=False):
         cmd += " --detach-sign"
 
     if keyname is not None:
-        cmd += " --default-key='%s'" % keyname
+        cmd += " --local-user '%s'" % keyname
 
     proc = subprocess.Popen(cmd,
                             shell=True,
