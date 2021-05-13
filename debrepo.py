@@ -431,7 +431,8 @@ def update_repo(storage, sign, tempdir):
             release_str.encode('utf-8'))
 
         if sign:
-            release_signature = gpg_sign_string(release_str)
-            release_inline = gpg_sign_string(release_str, inline=True)
+            keyname = os.getenv('GPG_SIGN_KEY')
+            release_signature = gpg_sign_string(release_str, keyname)
+            release_inline = gpg_sign_string(release_str, keyname, True)
             storage.write_file('dists/%s/Release.gpg' % dist, release_signature)
             storage.write_file('dists/%s/InRelease' % dist, release_inline)

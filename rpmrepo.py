@@ -836,7 +836,8 @@ def update_repo(storage, sign, tempdir):
         storage.delete_file(initial_primary)
 
     if sign:
-        repomd_signed = gpg_sign_string(repomd_str)
+        keyname = os.getenv('GPG_SIGN_KEY')
+        repomd_signed = gpg_sign_string(repomd_str, keyname)
         storage.write_file('repodata/repomd.xml.asc', repomd_signed)
 
 
