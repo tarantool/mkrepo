@@ -58,6 +58,18 @@ def bytes_checksum(data, checksum_type):
 
 
 def gpg_sign_string(data, keyname=None, inline=False):
+    """Signing data according to the specified options.
+
+    Keyword arguments:
+    data - data for sign (Unicode string).
+    keyname - name of the gpg key that will be used to sign the
+              data (string, default: None).
+    inline - option specifies whether to use a cleartext
+             signature (bool, default: False).
+
+    Return signed data in binary format.
+    """
+
     cmd = "gpg --armor --digest-algo SHA256"
 
     if inline:
