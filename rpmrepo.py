@@ -58,6 +58,18 @@ def bytes_checksum(data, checksum_type):
 
 
 def gpg_sign_string(data, keyname=None, inline=False):
+    """Signing data according to the specified options.
+
+    Keyword arguments:
+    data - data for sign (Unicode string).
+    keyname - name of the gpg key that will be used to sign the
+              data (string, default: None).
+    inline - option specifies whether to use a cleartext
+             signature (bool, default: False).
+
+    Return signed data in binary format.
+    """
+
     cmd = "gpg --armor --digest-algo SHA256"
 
     if inline:
@@ -66,14 +78,14 @@ def gpg_sign_string(data, keyname=None, inline=False):
         cmd += " --detach-sign"
 
     if keyname is not None:
-        cmd += " --default-key='%s'" % keyname
+        cmd += " --local-user '%s'" % keyname
 
     proc = subprocess.Popen(cmd,
                             shell=True,
                             stdout=subprocess.PIPE,
                             stdin=subprocess.PIPE,
                             stderr=subprocess.STDOUT)
-    stdout = proc.communicate(input=data)[0]
+    stdout = proc.communicate(input=data.encode('utf-8'))[0]
 
     if proc.returncode != 0:
         raise RuntimeError("Failed to sign file: %s" % stdout)
@@ -836,9 +848,9 @@ def update_repo(storage, sign, tempdir):
         storage.delete_file(initial_primary)
 
     if sign:
-        repomd_str_signed = gpg_sign_string(repomd_str)
-        storage.write_file('repodata/repomd.xml.asc',
-            repomd_str_signed.encode('utf-8'))
+        keyname = os.getenv('GPG_SIGN_KEY')
+        repomd_signed = gpg_sign_string(repomd_str, keyname)
+        storage.write_file('repodata/repomd.xml.asc', repomd_signed)
 
 
 def main():

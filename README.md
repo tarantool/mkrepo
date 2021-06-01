@@ -51,6 +51,35 @@ So you may skip them in command line invocation in case you have aws config.
 * `--sign` - /(optional) sign package metadata
 * `path` - specify list of path to scan for repositories
 
+## Environment variables reference
+
+`GPG_SIGN_KEY` - the name of the key that will be used to sign package metadata.
+
+<details><summary>Tips for working with GPG keys</summary>
+
+   * Create a new key:
+   ``` bash
+   gpg --full-generate-key
+   ```
+   * To view all your keys, you can use:
+   ``` bash
+   gpg --list-secret-keys --keyid-format LONG
+   ```
+   * Scripts can use something like this to get the Key ID:
+   ``` bash
+   export GPG_SIGN_KEY="$(gpg --list-secret-keys --with-colons | grep ^sec: | cut -d: -f5)"
+   ```
+   * Export the key in ASCII armored format:
+   ``` bash
+   gpg --armor --export-secret-keys MYKEYID > mykeys.asc
+   ```
+   * Import the key:
+   ``` bash
+   cat mykeys.asc | gpg --batch --import
+   ```
+
+</details>
+
 ## How it works
 
 `mkrepo` searches the supplied path for either `Packages` or `pool` subdir. If

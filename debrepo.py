@@ -45,6 +45,18 @@ def bz2_bytes(data):
 
 
 def gpg_sign_string(data, keyname=None, inline=False):
+    """Signing data according to the specified options.
+
+    Keyword arguments:
+    data - data for sign (Unicode string).
+    keyname - name of the gpg key that will be used to sign the
+              data (string, default: None).
+    inline - option specifies whether to use a cleartext
+             signature (bool, default: False).
+
+    Return signed data in binary format.
+    """
+
     cmd = "gpg --armor --digest-algo SHA256"
 
     if inline:
@@ -53,14 +65,14 @@ def gpg_sign_string(data, keyname=None, inline=False):
         cmd += " --detach-sign"
 
     if keyname is not None:
-        cmd += " --default-key='%s'" % keyname
+        cmd += " --local-user '%s'" % keyname
 
     proc = subprocess.Popen(cmd,
                             shell=True,
                             stdout=subprocess.PIPE,
                             stdin=subprocess.PIPE,
                             stderr=subprocess.STDOUT)
-    stdout = proc.communicate(input=data)[0]
+    stdout = proc.communicate(input=data.encode('utf-8'))[0]
 
     if proc.returncode != 0:
         raise RuntimeError("Failed to sign file: %s" % stdout)
@@ -431,9 +443,8 @@ def update_repo(storage, sign, tempdir):
             release_str.encode('utf-8'))
 
         if sign:
-            release_str_signature = gpg_sign_string(release_str)
-            release_str_inline = gpg_sign_string(release_str, inline=True)
-            storage.write_file('dists/%s/Release.gpg' % dist,
-                release_str_signature.encode('utf-8'))
-            storage.write_file('dists/%s/InRelease' % dist,
-                release_str_inline.encode('utf-8'))
+            keyname = os.getenv('GPG_SIGN_KEY')
+            release_signature = gpg_sign_string(release_str, keyname)
+            release_inline = gpg_sign_string(release_str, keyname, True)
+            storage.write_file('dists/%s/Release.gpg' % dist, release_signature)
+            storage.write_file('dists/%s/InRelease' % dist, release_inline)
