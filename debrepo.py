@@ -255,6 +255,29 @@ class Release(object):
         return "\n".join(result) + '\n'
 
 
+class RepoInfo(object):
+    """RepoInfo accumulate information about the processed
+    repository to simplify work.
+    """
+
+    def __init__(self, storage):
+        # storage - storage with repositories (Storage object).
+        self.storage = storage
+        # package_lists - list of the package lists (dictionary
+        #                 (dist, component, arch) to PackageList object).
+        self.package_lists = collections.defaultdict(PackageList)
+        # dists - list of distributions (set of strings).
+        self.dists = set()
+        # checksums - files checksums (dictionary).
+        self.checksums = collections.defaultdict(dict)
+        # sizes - files sizes (dictionary)
+        self.sizes = collections.defaultdict(dict)
+        # components - distributions components (dictionary).
+        self.components = collections.defaultdict(set)
+        # architectures - architectures supported in distributions (dictionary).
+        self.architectures = collections.defaultdict(set)
+
+
 def split_pkg_path(pkg_path):
 
     # We assume that DEB file format is the following, with optional <revision>, <dist> and <arch>
@@ -300,31 +323,26 @@ def save_malformed_list(storage, dist, malformed_list):
         storage.delete_file(file)
 
 
-def read_release_and_indices(storage):
+def read_release_and_indices(repo_info):
     """Read the "Release" files from "dists/$DIST/Release"
     and "Packages" files.
 
     Keyword arguments:
-    storage - storage with repositories (Storage object).
-
-    Return a list of the PackageList objects, a list of distributions.
+    repo_info - information about the processed repository (RepoInfo object).
     """
-    package_lists = collections.defaultdict(PackageList)
-    dists = set()
-
     expr = r'^dists/([^/]*)/Release$'
-    for file_path in storage.files('dists'):
+    for file_path in repo_info.storage.files('dists'):
         match = re.match(expr, file_path)
 
         if not match:
             continue
 
         dist = match.group(1)
-        dists.add(dist)
+        repo_info.dists.add(dist)
 
         release = Release()
-        release.parse_string(storage.read_file('dists/%s/Release' %
-                                               dist).decode('utf-8'))
+        release.parse_string(repo_info.storage.read_file('dists/%s/Release' %
+                                                         dist).decode('utf-8'))
 
         components = release['Components'].split(' ')
         architectures = release['Architectures'].split(' ')
@@ -335,12 +353,11 @@ def read_release_and_indices(storage):
 
                 package_list = PackageList()
                 package_list.parse_string(
-                    storage.read_file('dists/%s/%s/%s/Packages' %
-                                      (dist, component, subdir)).decode('utf-8'))
+                    repo_info.storage.read_file(
+                        'dists/%s/%s/%s/Packages' %
+                        (dist, component, subdir)).decode('utf-8'))
 
-                package_lists[(dist, component, arch)] = package_list
-
-    return package_lists, dists
+                repo_info.package_lists[(dist, component, arch)] = package_list
 
 
 def calculate_package_checksums(package, file_path):
@@ -376,18 +393,15 @@ def get_packages_mtimes(package_lists):
     return mtimes
 
 
-def process_packages(storage, tempdir, package_lists, dists, force):
+def process_packages(repo_info, tempdir, force):
     """Add information about changed files to the package.
 
     Keyword arguments:
-    storage - storage with repositories (Storage object).
+    repo_info - information about the processed repository (RepoInfo object).
     tempdir - path to the directory for storing temporary files (string).
-    package_lists - list of the package lists (dictionary
-                    (dist, component, arch) to PackageList object).
-    dists - list of distributions (set of strings).
     force - skip a malformed package without raising an error (bool).
     """
-    mtimes = get_packages_mtimes(package_lists)
+    mtimes = get_packages_mtimes(repo_info.package_lists)
     tmpdir = tempfile.mkdtemp('', 'tmp', tempdir)
 
     # Dictionary (dist to malformed packages list).
@@ -396,7 +410,7 @@ def process_packages(storage, tempdir, package_lists, dists, force):
     malformed_lists = {}
 
     expr = r'^.*\.deb$'
-    for file_path in storage.files('pool'):
+    for file_path in repo_info.storage.files('pool'):
         file_path = file_path.lstrip('/')
 
         match = re.match(expr, file_path)
@@ -411,9 +425,9 @@ def process_packages(storage, tempdir, package_lists, dists, force):
             sys.exit(1)
 
         dist, _, _ = components
-        dists.add(dist)
+        repo_info.dists.add(dist)
 
-        mtime = storage.mtime(file_path)
+        mtime = repo_info.storage.mtime(file_path)
         if file_path in mtimes:
             if str(mtime) == str(mtimes[file_path]):
                 print("Skipping: '%s'" % file_path)
@@ -422,7 +436,7 @@ def process_packages(storage, tempdir, package_lists, dists, force):
         else:
             print("Adding: '%s'" % file_path)
 
-        storage.download_file(file_path, os.path.join(tmpdir, 'package.deb'))
+        repo_info.storage.download_file(file_path, os.path.join(tmpdir, 'package.deb'))
 
         package = Package()
         local_file = os.path.join(tmpdir, 'package.deb')
@@ -446,42 +460,31 @@ def process_packages(storage, tempdir, package_lists, dists, force):
 
         calculate_package_checksums(package, local_file)
 
-        packages = package_lists[components].packages
+        packages = repo_info.package_lists[components].packages
 
         if package in packages:
             packages.remove(package)
         packages.add(package)
 
-    for dist in dists:
+    for dist in repo_info.dists:
         malformed_list = malformed_lists.get(dist, [])
-        save_malformed_list(storage, dist, malformed_list)
+        save_malformed_list(repo_info.storage, dist, malformed_list)
 
 
-def update_packages_files(storage, package_lists):
+def update_packages_files(repo_info):
     """Update the "Packages" files.
 
     Keyword arguments:
-    storage - storage with repositories (Storage object).
-    package_lists - list of the package lists (dictionary
-                    (dist, component, arch) to PackageList object).
-
-    Return dictionaries with checksums and sizes of the packages files, a
-    dictionary describes the "components" of distributions, and a dictionary
-    describes the supported architectures in distributions.
+    repo_info - information about the processed repository (RepoInfo object).
     """
-    checksums = collections.defaultdict(dict)
-    sizes = collections.defaultdict(dict)
-    components = collections.defaultdict(set)
-    architectures = collections.defaultdict(set)
-
-    for key in package_lists:
+    for key in repo_info.package_lists:
         dist, component, arch = key
         subdir = 'source' if arch == 'source' else 'binary-%s' % arch
 
-        components[dist].add(component)
-        architectures[dist].add(arch)
+        repo_info.components[dist].add(component)
+        repo_info.architectures[dist].add(arch)
 
-        package_list = package_lists[key]
+        package_list = repo_info.package_lists[key]
 
         prefix = 'dists/%s/' % dist
 
@@ -494,21 +497,19 @@ def update_packages_files(storage, package_lists):
         pkg_file_bz2_path = '%s/%s/Packages.bz2' % (component, subdir)
         pkg_file_bz2 = bz2_bytes(pkg_file.encode('utf-8'))
 
-        storage.write_file(prefix + pkg_file_path, pkg_file.encode('utf-8'))
-        storage.write_file(prefix + pkg_file_gzip_path, pkg_file_gzip)
-        storage.write_file(prefix + pkg_file_bz2_path, pkg_file_bz2)
+        repo_info.storage.write_file(prefix + pkg_file_path, pkg_file.encode('utf-8'))
+        repo_info.storage.write_file(prefix + pkg_file_gzip_path, pkg_file_gzip)
+        repo_info.storage.write_file(prefix + pkg_file_bz2_path, pkg_file_bz2)
 
         for path in [pkg_file_path, pkg_file_gzip_path, pkg_file_bz2_path]:
-            data = storage.read_file(prefix + path)
-            sizes[dist][path] = len(data)
+            data = repo_info.storage.read_file(prefix + path)
+            repo_info.sizes[dist][path] = len(data)
 
             for checksum_type in ['md5', 'sha1', 'sha256']:
                 h = hashlib.new(checksum_type)
                 h.update(data)
 
-                checksums[dist][(checksum_type, path)] = h.hexdigest()
-
-    return checksums, sizes, components, architectures
+                repo_info.checksums[dist][(checksum_type, path)] = h.hexdigest()
 
 
 def sign_release_file(storage, release_str, dist):
@@ -526,39 +527,32 @@ def sign_release_file(storage, release_str, dist):
     storage.write_file('dists/%s/InRelease' % dist, release_inline)
 
 
-def update_release_files(storage, sign, dists, checksums, sizes,
-                         components, architectures):
+def update_release_files(repo_info, sign):
     """Update the "Release" files.
 
     Keyword arguments:
-    storage - storage with repositories (Storage object).
-    sign - whether to sign the "Release" files (bool).
-    dists - list of distributions (set of strings).
-    checksums - files checksums (dictionary).
-    sizes - files sizes (dictionary)
-    components - distributions components (dictionary).
-    architectures - architectures supported in distributions (dictionary).
+    repo_info - information about the processed repository (RepoInfo object).
     """
     creation_date = rfc_2822_now_str()
 
-    for dist in dists:
+    for dist in repo_info.dists:
         release = Release()
 
         release['Origin'] = os.getenv('MKREPO_DEB_ORIGIN') or 'Repo generator'
         release['Label'] = os.getenv('MKREPO_DEB_LABEL') or 'Repo generator'
         release['Codename'] = dist
         release['Date'] = creation_date
-        release['Architectures'] = ' '.join(architectures[dist])
-        release['Components'] = ' '.join(components[dist])
+        release['Architectures'] = ' '.join(repo_info.architectures[dist])
+        release['Components'] = ' '.join(repo_info.components[dist])
         release['Description'] = os.getenv('MKREPO_DEB_DESCRIPTION')\
             or 'Repo generator'
 
         checksum_lines = collections.defaultdict(list)
         checksum_names = {'md5': 'MD5Sum', 'sha1': 'SHA1', 'sha256': 'SHA256'}
-        for checksum_key, checksum_value in checksums[dist].items():
+        for checksum_key, checksum_value in repo_info.checksums[dist].items():
             checksum_type, path = checksum_key
 
-            file_size = sizes[dist][path]
+            file_size = repo_info.sizes[dist][path]
             checksum_name = checksum_names[checksum_type]
 
             line = ' %s %s %s' % (checksum_value, file_size, path)
@@ -569,11 +563,11 @@ def update_release_files(storage, sign, dists, checksums, sizes,
                 '\n' + '\n'.join(checksum_lines[checksum_name])
 
         release_str = release.dump_string()
-        storage.write_file('dists/%s/Release' % dist,
+        repo_info.storage.write_file('dists/%s/Release' % dist,
                            release_str.encode('utf-8'))
 
         if sign:
-            sign_release_file(storage, release_str, dist)
+            sign_release_file(repo_info.storage, release_str, dist)
 
 
 def update_repo(storage, sign, tempdir, force=False):
@@ -585,9 +579,9 @@ def update_repo(storage, sign, tempdir, force=False):
     tempdir - path to the directory for storing temporary files (string).
     force - skip a malformed package without raising an error (bool).
     """
-    package_lists, dists = read_release_and_indices(storage)
+    repo_info = RepoInfo(storage)
 
-    process_packages(storage, tempdir, package_lists, dists, force)
-    checksums, sizes, components, architectures = update_packages_files(storage, package_lists)
-
-    update_release_files(storage, sign, dists, checksums, sizes, components, architectures)
+    read_release_and_indices(repo_info)
+    process_packages(repo_info, tempdir, force)
+    update_packages_files(repo_info)
+    update_release_files(repo_info, sign)
