@@ -323,6 +323,22 @@ def save_malformed_list(storage, dist, malformed_list):
         storage.delete_file(file)
 
 
+def process_packages_file(repo_info, path, dist, component, arch):
+    """Process the "Packages" file.
+
+    Keyword arguments:
+    repo_info - information about the processed repository (RepoInfo object).
+    path - path to the "Packages" file.
+    dist - distribution (string).
+    component - repository area (string).
+    arch - architecture (string).
+    """
+    package_list = PackageList()
+    package_list.parse_string(repo_info.storage.read_file(path).decode('utf-8'))
+
+    repo_info.package_lists[(dist, component, arch)] = package_list
+
+
 def read_release_and_indices(repo_info):
     """Read the "Release" files from "dists/$DIST/Release"
     and "Packages" files.
@@ -350,14 +366,8 @@ def read_release_and_indices(repo_info):
         for component in components:
             for arch in architectures:
                 subdir = 'source' if arch == 'source' else 'binary-%s' % arch
-
-                package_list = PackageList()
-                package_list.parse_string(
-                    repo_info.storage.read_file(
-                        'dists/%s/%s/%s/Packages' %
-                        (dist, component, subdir)).decode('utf-8'))
-
-                repo_info.package_lists[(dist, component, arch)] = package_list
+                path = 'dists/%s/%s/%s/Packages' % (dist, component, directory)
+                process_packages_file(repo_info, path, dist, component, arch)
 
 
 def calculate_package_checksums(package, file_path):
