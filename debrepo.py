@@ -196,6 +196,170 @@ class PackageList(object):
         return '\n\n'.join(result) + '\n'
 
 
+class Source(object):
+    """"Source" describes the unit of the "Source" index."""
+
+    def __init__(self):
+        self.fields = collections.OrderedDict()
+
+    def parse_dsc(self, dscfile, location, mtime):
+        """Parse the dsc control file.
+
+        Keyword arguments:
+        dscfile - path to dsc file (string).
+        location - location of the dsc file on the target host (string).
+        mtime - modification time (float).
+        """
+        with open(dscfile) as file:
+            self.parse_string(file.read())
+
+        # Add "Directory" field (https://wiki.debian.org/DebianRepository/Format#Directory).
+        self.fields['Directory'] = os.path.dirname(location)
+
+        # Add information about the dsc file to checksums.
+        size = os.path.getsize(dscfile)
+        file_information = '%i %s' % (size, os.path.basename(location))
+
+        file_fields = {
+            'Files': 'md5',
+            'Checksums-Sha1': 'sha1',
+            'Checksums-Sha256': 'sha256'
+        }
+
+        for field, checksum_type in file_fields.items():
+            if self.fields[field]:
+                self.fields[field] = '%s\n %s %s' % (
+                    self.fields[field],
+                    file_checksum(dscfile, checksum_type),
+                    file_information)
+
+    def parse_string(self, data):
+        """Parse control file.
+
+        Keyword arguments:
+        data - control file (string).
+        """
+        key = None
+        value = None
+
+        result = collections.OrderedDict()
+        for line in data.strip().split('\n'):
+            if line.startswith(' '):
+                # Multiline field case
+                # (https://www.debian.org/doc/debian-policy/ch-controlfields.html#syntax-of-control-files).
+                value = '%s\n%s' % (value, line)
+            else:
+                if key:
+                    # Save the key: value pair, read in the previous iteration.
+                    result[key] = value.strip(' ')
+                key, value = line.split(':', 1)
+                # We need to replace "Source" key to the "Package" according to
+                # https://wiki.debian.org/DebianRepository/Format#A.22Sources.22_Indices
+                if key == 'Source':
+                    key = 'Package'
+
+        if key:
+            # Save the result of the last iteration.
+            result[key] = value.strip(' ')
+
+        self.fields = result
+
+    def dump_string(self):
+        """Return the content of the index unit in text format."""
+        result = []
+        for key, value in self.fields.items():
+            pattern = '%s: %s'
+            if str(value).startswith('\n'):
+                pattern = '%s:%s'
+            result.append(pattern % (key, self.fields[key]))
+
+        return "\n".join(result)
+
+    def __getitem__(self, key):
+        return self.fields[key]
+
+    def __setitem__(self, key, value):
+        self.fields[key] = value
+
+    def __hash__(self):
+        return hash((self.fields['Package'],
+                     self.fields['Version']))
+
+    def __eq__(self, other):
+        return ((self.fields['Package'],
+                 self.fields['Version']) ==
+                (other.fields['Package'],
+                 other.fields['Version']))
+
+    def __ne__(self, other):
+        return not(self == other)
+
+
+class SourceList(object):
+    """"SourceList" describes the "Source" index."""
+
+    def __init__(self, component='main'):
+        self.component = component
+        self.sources = set()
+
+    def parse_string(self, data):
+        """Parse "Sources" file (source index).
+
+        Keyword arguments:
+        data - "Source" index (string).
+        """
+        sources = set()
+        for entry in data.strip().split('\n\n'):
+            if entry.strip() == "":
+                continue
+            src = Source()
+            src.parse_string(entry)
+            sources.add(src)
+
+        self.sources = sources
+
+    def parse_gzip_file(self, filename):
+        """Parse compressed "Sources" file ("Source" index).
+
+        Keyword arguments:
+        filename - path (string).
+        """
+        with gzip.open(filename) as f:
+            self.parse_string(f.read())
+
+    def parse_plain_file(self, filename):
+        """Parse "Sources" file ("Source" index).
+
+        Keyword arguments:
+        filename - path (string).
+        """
+        with open(filename) as f:
+            self.parse_string(f.read())
+
+    def parse_file(self, filename):
+        """Parse compressed or plain "Sources" file ("Source" index).
+
+        Keyword arguments:
+        filename - path (string).
+        """
+        filetype = mimetypes.guess_type(filename)
+        if filetype[1] is None:
+            self.parse_plain_file(filename)
+        elif filetype[1] == 'gzip':
+            self.parse_gzip_file(filename)
+        else:
+            raise RuntimeError("Unsupported Sources type: '%s'" % filetype[1])
+
+    def dump_string(self):
+        """Return the content of the index in text format."""
+        result = []
+
+        for src in self.sources:
+            result.append(src.dump_string())
+
+        return '\n\n'.join(result) + '\n'
+
+
 class Release(object):
 
     def __init__(self, codename=None, origin=None, suite=None):
@@ -266,6 +430,9 @@ class RepoInfo(object):
         # package_lists - list of the package lists (dictionary
         #                 (dist, component, arch) to PackageList object).
         self.package_lists = collections.defaultdict(PackageList)
+        # source_lists - list of the source lists (dictionary
+        #                (dist, component) to SourceList object).
+        self.source_lists = collections.defaultdict(SourceList)
         # dists - list of distributions (set of strings).
         self.dists = set()
         # checksums - files checksums (dictionary).
@@ -323,6 +490,26 @@ def save_malformed_list(storage, dist, malformed_list):
         storage.delete_file(file)
 
 
+def split_src_path(src_path):
+    """Return the distribution and component relevant src_path.
+
+    Keyword arguments:
+    src_path - path to control file (string).
+    """
+    component = 'main'
+
+    match_path = re.match('^pool/(?P<dist>[^/]+)/main', src_path)
+
+    if not match_path:
+        return None
+
+    dist = match_path.group('dist')
+    if dist is None:
+        dist = 'all'
+
+    return (dist, component)
+
+
 def process_packages_file(repo_info, path, dist, component, arch):
     """Process the "Packages" file.
 
@@ -337,6 +524,21 @@ def process_packages_file(repo_info, path, dist, component, arch):
     package_list.parse_string(repo_info.storage.read_file(path).decode('utf-8'))
 
     repo_info.package_lists[(dist, component, arch)] = package_list
+
+
+def process_sources_file(repo_info, path, dist, component):
+    """Process the "Sources" file.
+
+    Keyword arguments:
+    repo_info - information about the processed repository (RepoInfo object).
+    path - path to the "Sources" file.
+    dist - distribution (string).
+    component - repository area (string).
+    """
+    source_list = SourceList()
+    source_list.parse_string(repo_info.storage.read_file(path).decode('utf-8'))
+
+    repo_info.source_lists[(dist, component)] = source_list
 
 
 def read_release_and_indices(repo_info):
@@ -364,10 +566,24 @@ def read_release_and_indices(repo_info):
         architectures = release['Architectures'].split(' ')
 
         for component in components:
+            # In fact, we support only "main".
             for arch in architectures:
-                subdir = 'source' if arch == 'source' else 'binary-%s' % arch
-                path = 'dists/%s/%s/%s/Packages' % (dist, component, directory)
+                # Process the "Packages" indices.
+                if arch == 'source':
+                    # The "source" case is processed below as special.
+                    # We have few reasons for this:
+                    # - several differences in processing.
+                    # - often "source" architecture is not specified,
+                    #   but "Source" index exists.
+                    continue
+
+                path = 'dists/%s/%s/binary-%s/Packages' % (dist, component, arch)
                 process_packages_file(repo_info, path, dist, component, arch)
+
+            # Process the "Source" index.
+            path = 'dists/%s/%s/source/Sources' % (dist, component)
+            if repo_info.storage.exists(path):
+                process_sources_file(repo_info, path, dist, component)
 
 
 def calculate_package_checksums(package, file_path):
@@ -399,6 +615,25 @@ def get_packages_mtimes(package_lists):
             if 'FileTime' in package.fields:
                 mtimes[package['Filename'].lstrip(
                     '/')] = float(package['FileTime'])
+
+    return mtimes
+
+
+def get_sources_mtimes(source_lists):
+    """Read the mtimes of files from the sources lists.
+
+    Keyword arguments:
+    source_lists - list of the source lists (dictionary
+                   (dist, component, arch) to SourceList object).
+
+    Return the dictionary "filename to mtime".
+    """
+    mtimes = {}
+    for source_lists in source_lists.values():
+        for source in source_lists.sources:
+            if 'FileTime' in source.fields and 'Filename' in source.fields:
+                mtimes[source['Filename'].lstrip(
+                    '/')] = float(source['FileTime'])
 
     return mtimes
 
@@ -481,6 +716,59 @@ def process_packages(repo_info, tempdir, force):
         save_malformed_list(repo_info.storage, dist, malformed_list)
 
 
+def process_sources(repo_info, tempdir):
+    """Add information about changed files to the source.
+
+    Keyword arguments:
+    repo_info - information about the processed repository (RepoInfo object).
+    tempdir - path to the directory for storing temporary files (string).
+    """
+    mtimes = get_sources_mtimes(repo_info.source_lists)
+    tmpdir = tempfile.mkdtemp('', 'tmp', tempdir)
+
+    expr = r'^.*\.dsc$'
+    for file_path in repo_info.storage.files('pool'):
+        file_path = file_path.lstrip('/')
+
+        match = re.match(expr, file_path)
+
+        if not match:
+            continue
+
+        components = split_src_path(file_path)
+
+        if not components:
+            print("Failed to parse file name: '%s'" % file_path)
+            sys.exit(1)
+
+        dist, _ = components
+        repo_info.dists.add(dist)
+
+        mtime = repo_info.storage.mtime(file_path)
+        if file_path in mtimes:
+            if str(mtime) == str(mtimes[file_path]):
+                print("Skipping: '%s'" % file_path)
+                continue
+            print("Updating: '%s'" % file_path)
+        else:
+            print("Adding: '%s'" % file_path)
+
+        repo_info.storage.download_file(file_path, os.path.join(tmpdir, 'source.dsc'))
+
+        source = Source()
+        local_file = os.path.join(tmpdir, 'source.dsc')
+        source.parse_dsc(local_file, file_path, mtime)
+
+        source['Filename'] = file_path
+        source['FileTime'] = mtime
+
+        sources = repo_info.source_lists[components].sources
+
+        if source in sources:
+            sources.remove(source)
+        sources.add(source)
+
+
 def update_packages_files(repo_info):
     """Update the "Packages" files.
 
@@ -512,6 +800,46 @@ def update_packages_files(repo_info):
         repo_info.storage.write_file(prefix + pkg_file_bz2_path, pkg_file_bz2)
 
         for path in [pkg_file_path, pkg_file_gzip_path, pkg_file_bz2_path]:
+            data = repo_info.storage.read_file(prefix + path)
+            repo_info.sizes[dist][path] = len(data)
+
+            for checksum_type in ['md5', 'sha1', 'sha256']:
+                h = hashlib.new(checksum_type)
+                h.update(data)
+
+                repo_info.checksums[dist][(checksum_type, path)] = h.hexdigest()
+
+
+def update_sources_files(repo_info):
+    """Update the "Sources" files.
+
+    Keyword arguments:
+    repo_info - information about the processed repository (RepoInfo object).
+    """
+    for key in repo_info.source_lists:
+        dist, component = key
+        subdir = 'source'
+
+        repo_info.components[dist].add(component)
+
+        source_list = repo_info.source_lists[key]
+
+        prefix = 'dists/%s/' % dist
+
+        src_file_path = '%s/%s/Sources' % (component, subdir)
+        src_file = source_list.dump_string()
+
+        src_file_gzip_path = '%s/%s/Sources.gz' % (component, subdir)
+        src_file_gzip = gzip_bytes(src_file.encode('utf-8'))
+
+        src_file_bz2_path = '%s/%s/Sources.bz2' % (component, subdir)
+        src_file_bz2 = bz2_bytes(src_file.encode('utf-8'))
+
+        repo_info.storage.write_file(prefix + src_file_path, src_file.encode('utf-8'))
+        repo_info.storage.write_file(prefix + src_file_gzip_path, src_file_gzip)
+        repo_info.storage.write_file(prefix + src_file_bz2_path, src_file_bz2)
+
+        for path in [src_file_path, src_file_gzip_path, src_file_bz2_path]:
             data = repo_info.storage.read_file(prefix + path)
             repo_info.sizes[dist][path] = len(data)
 
@@ -593,5 +921,7 @@ def update_repo(storage, sign, tempdir, force=False):
 
     read_release_and_indices(repo_info)
     process_packages(repo_info, tempdir, force)
+    process_sources(repo_info, tempdir)
     update_packages_files(repo_info)
+    update_sources_files(repo_info)
     update_release_files(repo_info, sign)
