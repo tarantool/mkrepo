@@ -4,8 +4,6 @@ import collections
 import mimetypes
 import gzip
 import bz2
-import json
-import tarfile
 import subprocess
 import re
 import os
