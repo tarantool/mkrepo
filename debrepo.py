@@ -295,11 +295,11 @@ class Index(object):
         return '\n\n'.join(result) + '\n'
 
 
-class PackageList(Index):
-    """"PackageList" describes the "Package" index."""
+class PackageIndex(Index):
+    """"PackageIndex" describes the "Package" index."""
 
     def __init__(self, component='main', arch='x86_64'):
-        super(PackageList, self).__init__(component)
+        super(PackageIndex, self).__init__(component)
         self.arch = arch
 
     def parse_string(self, data):
@@ -315,11 +315,11 @@ class PackageList(Index):
         self.units = packages
 
 
-class SourceList(Index):
-    """"SourceList" describes the "Source" index."""
+class SourceIndex(Index):
+    """"SourceIndex" describes the "Source" index."""
 
     def __init__(self, component='main'):
-        super(SourceList, self).__init__(component)
+        super(SourceIndex, self).__init__(component)
 
     def parse_string(self, data):
         """Parse "Sources" file (source index).
@@ -405,12 +405,12 @@ class RepoInfo(object):
     def __init__(self, storage):
         # storage - storage with repositories (Storage object).
         self.storage = storage
-        # package_lists - list of the package lists (dictionary
-        #                 (dist, component, arch) to PackageList object).
-        self.package_lists = collections.defaultdict(PackageList)
-        # source_lists - list of the source lists (dictionary
-        #                (dist, component) to SourceList object).
-        self.source_lists = collections.defaultdict(SourceList)
+        # package_index_list - list of the package index (dictionary
+        #                      (dist, component, arch) to PackageIndex object).
+        self.package_index_list = collections.defaultdict(PackageIndex)
+        # source_index_list - list of the source index (dictionary
+        #                     (dist, component, arch) to SourceIndex object).
+        self.source_index_list = collections.defaultdict(SourceIndex)
         # dists - list of distributions (set of strings).
         self.dists = set()
         # checksums - files checksums (dictionary).
@@ -434,13 +434,13 @@ def split_control_file_path(path, ctrl_type):
     dist = ''
     arch = ''
 
-    if ctrl_type == 'binary'
+    if ctrl_type == 'binary':
         # We assume that DEB file format is the following, with optional <revision>, <dist> and <arch>
         # <package>_<version>.<revision>-<dist>_<arch>.deb
 
         expr = r'^(?P<package>[^_]+)_(?P<version>[0-9]+(\.[0-9]+){2,3}(\.g[a-f0-9]+)?\-[0-9])(\.(?P<revision>[^\-]+))?([\-]?(?P<dist>[^_]+))?_(?P<arch>[^\.]+)\.deb$'
 
-        match_package = re.match(expr, pkg_path)
+        match_package = re.match(expr, path)
         if not match_package:
             return None
 
@@ -449,7 +449,7 @@ def split_control_file_path(path, ctrl_type):
 
     # The distribution information may be missing in the file name,
     # but present in the path.
-    match_path = re.match('^pool/(?P<dist>[^/]+)/main', pkg_path)
+    match_path = re.match('^pool/(?P<dist>[^/]+)/main', path)
 
     component = 'main'
 
@@ -496,17 +496,17 @@ def process_index_file(repo_info, path, dist, component, arch, index_type):
     index = None
 
     if index_type == 'packages':
-        index = PackageList()
+        index = PackageIndex()
     elif index_type == 'sources':
-        index = SourceList()
+        index = SourceIndex()
     else:
         raise(RuntimeError('Unknown index type: ' + index_type))
 
     index.parse_string(repo_info.storage.read_file(path).decode('utf-8'))
     if index_type == 'packages':
-        repo_info.package_lists[(dist, component)] = index
+        repo_info.package_index_list[(dist, component, arch)] = index
     elif index_type == 'sources':
-        repo_info.source_lists[(dist, component)] = index
+        repo_info.source_index_list[(dist, component, arch)] = index
 
 
 def read_release_and_indices(repo_info):
@@ -580,7 +580,7 @@ def get_mtimes(index_list):
     Return the dictionary "filename to mtime".
     """
     mtimes = {}
-    for index in index_lists.values():
+    for index in index_list.values():
         for unit in index.units:
             if 'FileTime' in unit.fields and 'Filename' in unit.fields:
                 mtimes[unit['Filename'].lstrip(
@@ -599,18 +599,18 @@ def process_index_units(repo_info, tempdir, index_type, force=False):
     force - skip a malformed package without raising an error (bool).
     """
 
-    index = None
+    index_list = None
     ctrl_type = ''
     expr = ''
     tmp_filename = ''
 
     if index_type == 'packages':
-        index_list = repo_info.package_lists
+        index_list = repo_info.package_index_list
         ctrl_type = 'binary'
         expr = r'^.*\.deb$'
         tmp_filename = 'package.deb'
     elif index_type == 'sources':
-        index_list = repo_info.source_lists
+        index_list = repo_info.source_index_list
         ctrl_type = 'src'
         expr = r'^.*\.dsc$'
         tmp_filename = 'source.dsc'
@@ -638,7 +638,7 @@ def process_index_units(repo_info, tempdir, index_type, force=False):
             print("Failed to parse file name: '%s'" % file_path)
             sys.exit(1)
 
-        dist, _ , _ = components
+        dist, _, _ = components
         repo_info.dists.add(dist)
 
         mtime = repo_info.storage.mtime(file_path)
@@ -704,14 +704,14 @@ def update_index_files(repo_info, index_type):
     index_list = None
     if index_type == 'packages':
         index_filename = 'Packages'
-        index_list = repo_info.package_lists
+        index_list = repo_info.package_index_list
     elif index_type == 'sources':
         index_filename = 'Sources'
-        index_list = repo_info.source_lists
+        index_list = repo_info.source_index_list
     else:
         raise(RuntimeError('Unknown index type: ' + index_type))
 
-    for key in repo_info.source_lists:
+    for key in index_list:
         dist, component, arch = key
         subdir = 'source' if arch == 'source' else 'binary-%s' % arch
 
