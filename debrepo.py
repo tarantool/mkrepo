@@ -415,13 +415,14 @@ def update_repo(storage, sign, tempdir):
     for dist in dists:
         release = Release()
 
-        release['Origin'] = 'Repo generator'
-        release['Label'] = 'Repo generator'
+        release['Origin'] = os.getenv('MKREPO_DEB_ORIGIN') or 'Repo generator'
+        release['Label'] = os.getenv('MKREPO_DEB_LABEL') or 'Repo generator'
         release['Codename'] = dist
         release['Date'] = creation_date
         release['Architectures'] = ' '.join(architectures[dist])
         release['Components'] = ' '.join(components[dist])
-        release['Description'] = 'Repo generator'
+        release['Description'] = os.getenv('MKREPO_DEB_DESCRIPTION')\
+            or 'Repo generator'
 
         checksum_lines = collections.defaultdict(list)
         checksum_names = {'md5': 'MD5Sum', 'sha1': 'SHA1', 'sha256': 'SHA256'}
