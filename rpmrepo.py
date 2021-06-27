@@ -123,7 +123,11 @@ def parse_repomd(data):
     filelists = None
     primary = None
 
-    revision = root.find('repo:revision', namespaces).text
+    # The revision is an optional XML element and may be absent.
+    revision = '0'
+    revision_element = root.find('repo:revision', namespaces)
+    if revision_element:
+        revision = revision_element.text
 
     for child in root:
         if 'type' not in child.attrib:
