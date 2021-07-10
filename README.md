@@ -53,7 +53,7 @@ So you may skip them in command line invocation in case you have aws config.
 
 ## Environment variables reference
 
-`GPG_SIGN_KEY` - the name of the key that will be used to sign package metadata.
+* `GPG_SIGN_KEY` - the name of the key that will be used to sign package metadata.
 
 <details><summary>Tips for working with GPG keys</summary>
 
@@ -79,6 +79,12 @@ So you may skip them in command line invocation in case you have aws config.
    ```
 
 </details>
+
+* `MKREPO_DEB_ORIGIN` - the value of the ["Origin"](https://wiki.debian.org/DebianRepository/Format#Origin)
+  field of the "Release" file.
+* `MKREPO_DEB_LABEL` - the value of the ["Label"](https://wiki.debian.org/DebianRepository/Format#Label)
+  field of the "Release" file.
+* `MKREPO_DEB_DESCRIPTION` - the value of the "Description" field of the "Release" file.
 
 ## How it works
 
