@@ -429,31 +429,50 @@ def split_control_file_path(path, ctrl_type):
     ctrl_type - type of the control file(string: "src" / "binary")
     """
 
-    dist = ''
+    dist = 'all'
     arch = ''
 
     if ctrl_type == 'binary':
-        # We assume that DEB file format is the following, with optional <revision>, <dist> and <arch>
-        # <package>_<version>.<revision>-<dist>_<arch>.deb
+        # According to
+        # https://www.debian.org/doc/manuals/debian-reference/ch02.en.html#_debian_package_file_names
+        # the package name format is the following
+        # <package-name>_<upstream-version>-<debian.revision>_<architecture>.deb
+        #
+        # Also to usable characters for <upstream-version> '~' has been
+        # added, because some packages from the ubuntu repository use it
+        # and according to https://www.debian.org/doc/debian-policy/ch-controlfields.html#version
+        # it's fine.
+        expr = r'^(?P<package_name>[a-z0-9][-a-z0-9.+]+)_(?P<upstream_version>[-a-zA-Z0-9.+:~]+)'\
+               r'(-(?P<debian_revision>[a-zA-Z0-9.+~]+))_(?P<arch>[^\.]+)\.deb$'
 
-        expr = r'^(?P<package>[^_]+)_(?P<version>[0-9]+(\.[0-9]+){2,3}(\.g[a-f0-9]+)?\-[0-9])(\.(?P<revision>[^\-]+))?([\-]?(?P<dist>[^_]+))?_(?P<arch>[^\.]+)\.deb$'
+        match_package = re.match(expr, os.path.basename(path))
+        if not match_package:
+            # According to https://www.debian.org/doc/debian-policy/ch-controlfields.html#version:
+            # " If there is no debian_revision then hyphens are not allowed [in upstream_version].
+            #
+            # <...>
+            #
+            # It [debian_revision] is optional; if it isn't present then the upstream_version
+            # must not contain a hyphen.
+            #
+            # The package management system will break the version number apart at the last hyphen
+            # in the string (if there is one) to determine the upstream_version and debian_revision.
+            # The absence of a debian_revision is equivalent to a debian_revision of 0.
+            expr2 = r'^(?P<package_name>[a-z0-9][-a-z0-9.+]+)_(?P<upstream_version>[a-zA-Z0-9.+:~]+)'\
+                    r'_(?P<arch>[^\.]+)\.deb$'
+            match_package = re.match(expr2, os.path.basename(path))
 
-        match_package = re.match(expr, path)
         if not match_package:
             return None
 
-        dist = match_package.group('dist')
         arch = match_package.group('arch') or 'all'
 
-    # The distribution information may be missing in the file name,
-    # but present in the path.
+    # Get the distribution information from the package path.
     match_path = re.match('^pool/(?P<dist>[^/]+)/main', path)
+    if match_path:
+        dist = match_path.group('dist')
 
     component = 'main'
-
-    dist = dist or match_path.group('dist')
-    if dist is None:
-        dist = 'all'
 
     if ctrl_type == 'src':
         arch = 'source'
