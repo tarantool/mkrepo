@@ -282,7 +282,25 @@ def split_pkg_path(pkg_path):
     return (dist, component, arch)
 
 
-def update_repo(storage, sign, tempdir):
+def save_malformed_list(storage, dist, malformed_list):
+    """Save the list of malformed packages to the storage.
+
+    Keyword arguments:
+    storage - storage with repositories (Storage object).
+    dist - distribution version (string)
+    malformed_list - list of malformed packages (list of strings).
+    """
+    file = 'dists/%s/malformed_list.txt' % dist
+    if malformed_list:
+        print('Save malformed list...')
+        storage.write_file(file, '\n'.join(malformed_list).encode('utf-8'))
+    elif storage.exists(file):
+        # The list existed before, but is not up-to-date now.
+        print('Delete malformed list...')
+        storage.delete_file(file)
+
+
+def update_repo(storage, sign, tempdir, force=False):
     dists = set()
     package_lists = collections.defaultdict(PackageList)
 
@@ -323,6 +341,11 @@ def update_repo(storage, sign, tempdir):
 
     tmpdir = tempfile.mkdtemp('', 'tmp', tempdir)
 
+    # Dictionary (dist to malformed packages list).
+    # Malformed list - list of packages that can't be added to the index
+    # (some problems encountered during processing).
+    malformed_lists = {}
+
     expr = r'^.*\.deb$'
     for file_path in storage.files('pool'):
         file_path = file_path.lstrip('/')
@@ -354,7 +377,20 @@ def update_repo(storage, sign, tempdir):
 
         package = Package()
         local_file = os.path.join(tmpdir, 'package.deb')
-        package.parse_deb(local_file)
+
+        try:
+            package.parse_deb(local_file)
+        except Exception as err:
+            print("Can't parse '%s':\n%s" % (file_path, str(err)))
+            if force:
+                if dist in malformed_lists:
+                    malformed_lists[dist].append(file_path)
+                else:
+                    malformed_lists[dist] = [file_path]
+                continue
+            else:
+                raise err
+
         package['Filename'] = file_path
         package['Size'] = os.path.getsize(local_file)
         package['FileTime'] = mtime
@@ -370,6 +406,10 @@ def update_repo(storage, sign, tempdir):
         if package in packages:
             packages.remove(package)
         packages.add(package)
+
+    for dist in dists:
+        malformed_list = malformed_lists.get(dist, [])
+        save_malformed_list(storage, dist, malformed_list)
 
     checksums = collections.defaultdict(dict)
     sizes = collections.defaultdict(dict)

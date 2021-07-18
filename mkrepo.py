@@ -51,10 +51,10 @@ def update_repo(path, args):
 
     if is_deb_repo(stor):
         print("Updating deb repository: %s" % path)
-        debrepo.update_repo(stor, args.sign, args.temp_dir)
+        debrepo.update_repo(stor, args.sign, args.temp_dir, args.force)
     elif is_rpm_repo(stor):
         print("Updating rpm repository: %s" % path)
-        rpmrepo.update_repo(stor, args.sign, args.temp_dir)
+        rpmrepo.update_repo(stor, args.sign, args.temp_dir, args.force)
     else:
         print("Unknown repository: %s" % path)
 
@@ -85,6 +85,17 @@ def main():
         action='store_true',
         default=False,
         help='sign package metadata')
+
+    parser.add_argument(
+        '--force',
+        action='store_true',
+        default=False,
+        help="""when adding packages to the index, the malformed one will be
+              skipped. By default, a malformed package will cause the utility
+              to stop working. The malformed_list.txt file will also be added
+              to the repository
+              """
+        )
 
     parser.add_argument(
         'path', nargs='+',
