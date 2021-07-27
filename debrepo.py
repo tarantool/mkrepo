@@ -150,7 +150,7 @@ class Package(object):
 
 class PackageList(object):
 
-    def __init__(self, component='main', arch='x86_64'):
+    def __init__(self, component='main', arch='amd64'):
         self.component = component
         self.arch = arch
         self.packages = set()
