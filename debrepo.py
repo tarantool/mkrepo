@@ -302,7 +302,8 @@ def save_malformed_list(storage, dist, malformed_list):
 
 
 def update_repo(storage, sign, tempdir, force=False):
-    dists = set()
+    dists = set(re.findall(r"\w+", os.getenv('MKREPO_DEB_DISTS', "")))
+
     package_lists = collections.defaultdict(PackageList)
 
     expr = r'^dists/([^/]*)/Release$'
