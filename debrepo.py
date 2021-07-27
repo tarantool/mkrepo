@@ -363,7 +363,8 @@ def update_repo(storage, sign, tempdir, force=False):
             sys.exit(1)
 
         dist, _, _ = components
-        dists.add(dist)
+        if dist != "all":
+            dists.add(dist)
 
         mtime = storage.mtime(file_path)
         if file_path in mtimes:
@@ -408,9 +409,19 @@ def update_repo(storage, sign, tempdir, force=False):
             packages.remove(package)
         packages.add(package)
 
-    for dist in dists:
-        malformed_list = malformed_lists.get(dist, [])
-        save_malformed_list(storage, dist, malformed_list)
+    is_update_dist_all = "all" in dists
+    if is_update_dist_all:
+        print("Updating 'all' dist")
+
+    if not is_update_dist_all:
+        all_malformed_list = malformed_lists.get("all", [])
+        for dist in dists:
+            malformed_list = malformed_lists.get(dist, []) + all_malformed_list
+            save_malformed_list(storage, dist, malformed_list)
+    else:
+        for dist in dists:
+            malformed_list = malformed_lists.get(dist, [])
+            save_malformed_list(storage, dist, malformed_list)
 
     checksums = collections.defaultdict(dict)
     sizes = collections.defaultdict(dict)
@@ -421,35 +432,38 @@ def update_repo(storage, sign, tempdir, force=False):
         dist, component, arch = key
         subdir = 'source' if arch == 'source' else 'binary-%s' % arch
 
-        components[dist].add(component)
-        architectures[dist].add(arch)
-
         package_list = package_lists[key]
+        package_dists = [ dist ] if is_update_dist_all or dist != "all" else dists
 
-        prefix = 'dists/%s/' % dist
+        for dist in package_dists:
+            components[dist].add(component)
+            architectures[dist].add(arch)
 
-        pkg_file_path = '%s/%s/Packages' % (component, subdir)
-        pkg_file = package_list.dump_string()
+            prefix = 'dists/%s/' % dist
 
-        pkg_file_gzip_path = '%s/%s/Packages.gz' % (component, subdir)
-        pkg_file_gzip = gzip_bytes(pkg_file.encode('utf-8'))
+            pkg_file_path = '%s/%s/Packages' % (component, subdir)
+            pkg_file = package_list.dump_string()
 
-        pkg_file_bz2_path = '%s/%s/Packages.bz2' % (component, subdir)
-        pkg_file_bz2 = bz2_bytes(pkg_file.encode('utf-8'))
+            pkg_file_gzip_path = '%s/%s/Packages.gz' % (component, subdir)
+            pkg_file_gzip = gzip_bytes(pkg_file.encode('utf-8'))
 
-        storage.write_file(prefix + pkg_file_path, pkg_file.encode('utf-8'))
-        storage.write_file(prefix + pkg_file_gzip_path, pkg_file_gzip)
-        storage.write_file(prefix + pkg_file_bz2_path, pkg_file_bz2)
+            pkg_file_bz2_path = '%s/%s/Packages.bz2' % (component, subdir)
+            pkg_file_bz2 = bz2_bytes(pkg_file.encode('utf-8'))
 
-        for path in [pkg_file_path, pkg_file_gzip_path, pkg_file_bz2_path]:
-            data = storage.read_file(prefix + path)
-            sizes[dist][path] = len(data)
+            storage.write_file(prefix + pkg_file_path,
+                               pkg_file.encode('utf-8'))
+            storage.write_file(prefix + pkg_file_gzip_path, pkg_file_gzip)
+            storage.write_file(prefix + pkg_file_bz2_path, pkg_file_bz2)
 
-            for checksum_type in ['md5', 'sha1', 'sha256']:
-                h = hashlib.new(checksum_type)
-                h.update(data)
+            for path in [pkg_file_path, pkg_file_gzip_path, pkg_file_bz2_path]:
+                data = storage.read_file(prefix + path)
+                sizes[dist][path] = len(data)
 
-                checksums[dist][(checksum_type, path)] = h.hexdigest()
+                for checksum_type in ['md5', 'sha1', 'sha256']:
+                    h = hashlib.new(checksum_type)
+                    h.update(data)
+
+                    checksums[dist][(checksum_type, path)] = h.hexdigest()
 
     creation_date = rfc_2822_now_str()
 
