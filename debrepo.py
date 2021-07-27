@@ -257,27 +257,28 @@ class Release(object):
 
 def split_pkg_path(pkg_path):
 
+    pkg_dir, pkg_name = os.path.split(pkg_path)
+
     # We assume that DEB file format is the following, with optional <revision>, <dist> and <arch>
     # <package>_<version>.<revision>-<dist>_<arch>.deb
 
-    expr = r'^(?P<package>[^_]+)_(?P<version>[0-9]+(\.[0-9]+){2,3}(\.g[a-f0-9]+)?\-[0-9])(\.(?P<revision>[^\-]+))?([\-]?(?P<dist>[^_]+))?_(?P<arch>[^\.]+)\.deb$'
-    match_package = re.match(expr, pkg_path)
-
-    # The distribution information may be missing in the file name,
-    # but present in the path.
-    match_path = re.match('^pool/(?P<dist>[^/]+)/main', pkg_path)
+    expr = r'^(?P<package>[^_]+)_(?P<version>[0-9]+(\.[0-9]+){1,3}(\.g[a-f0-9]+)?(\-[0-9]+)?)(\.(?P<revision>[^\-]+))?([\-](?P<dist>[^_]+))?_(?P<arch>[^\.]+)\.deb$'
+    match_package = re.match(expr, pkg_name)
 
     if not match_package:
         return None
 
-    component = 'main'
+    # The distribution information may be missing in the file name,
+    # but present in the path.
 
-    dist = match_package.group('dist') or match_path.group('dist')
-    if dist is None:
-        dist = 'all'
-    arch = match_package.group('arch')
-    if arch is None:
-        arch = 'all'
+    package = match_package.group('package')
+    subdir = f"{package[:4 if re.match('^lib', package) else 1]}/{package}"
+
+    match_path = re.match(f'^pool(/(?P<dist>[^/]+))?/(?P<component>[^/]+)/{subdir}$', pkg_dir)
+
+    component = (match_path and match_path.group('component')) or 'main'
+    dist = match_package.group('dist') or (match_path and match_path.group('dist')) or 'all'
+    arch = match_package.group('arch') or 'all'
 
     return (dist, component, arch)
 
