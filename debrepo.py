@@ -4,8 +4,6 @@ import collections
 import mimetypes
 import gzip
 import bz2
-import json
-import tarfile
 import subprocess
 import re
 import os
@@ -80,12 +78,77 @@ def gpg_sign_string(data, keyname=None, inline=False):
     return stdout
 
 
-class Package(object):
+class IndexUnit(object):
+    """Describes the common part of an index unit."""
+
+    def __init__(self):
+        self.fields = collections.OrderedDict()
+
+    def parse_string(self, data):
+        """Parse control file.
+
+        Keyword arguments:
+        data - control file (string).
+        """
+        key = None
+        value = None
+
+        result = collections.OrderedDict()
+        for line in data.strip().split('\n'):
+            if line.startswith(' '):
+                # Multiline field case
+                # (https://www.debian.org/doc/debian-policy/ch-controlfields.html#syntax-of-control-files).
+                value = '%s\n%s' % (value, line)
+            else:
+                if key:
+                    # Save the key: value pair, read in the previous iteration.
+                    result[key] = value.strip(' ')
+                key, value = line.split(':', 1)
+
+        if key:
+            # Save the result of the last iteration.
+            result[key] = value.strip(' ')
+
+        self.fields = result
+
+    def dump_string(self):
+        """Return the content of the index unit in text format."""
+        result = []
+        for key, value in self.fields.items():
+            pattern = '%s: %s'
+            if str(value).startswith('\n'):
+                pattern = '%s:%s'
+            result.append(pattern % (key, self.fields[key]))
+
+        return "\n".join(result)
+
+    def __getitem__(self, key):
+        return self.fields[key]
+
+    def __setitem__(self, key, value):
+        self.fields[key] = value
+
+    def __hash__(self):
+        return hash((self.fields['Package'],
+                     self.fields['Version']))
+
+    def __eq__(self, other):
+        return ((self.fields['Package'],
+                 self.fields['Version']) ==
+                (other.fields['Package'],
+                 other.fields['Version']))
+
+    def __ne__(self, other):
+        return not(self == other)
+
+
+class Package(IndexUnit):
+    """"Package" describes the unit of the "Package" index."""
 
     def __init__(self, component='main', arch='amd64'):
+        super(Package, self).__init__()
         self.component = component
         self.arch = arch
-        self.fields = collections.OrderedDict()
 
     def parse_deb(self, debfile):
         if subprocess.call('ar t ' + debfile + ' | grep control.tar.gz', shell=True) == 0:
@@ -97,39 +160,6 @@ class Package(object):
 
         control = subprocess.check_output(cmd, shell=True)
         self.parse_string(control.decode('utf-8').strip())
-
-    def parse_string(self, data):
-        key = None
-        value = None
-
-        result = collections.OrderedDict()
-        for line in data.strip().split('\n'):
-            if line.startswith(" "):
-                if value:
-                    value = '%s\n%s' % (value, line)
-                else:
-                    value = line
-            else:
-                if key:
-                    result[key] = value.strip()
-                key, value = line.split(':', 1)
-        if key:
-            result[key] = value.strip()
-
-        self.fields = result
-
-    def dump_string(self):
-        result = []
-        for key in self.fields:
-            result.append('%s: %s' % (key, self.fields[key]))
-
-        return "\n".join(result)
-
-    def __getitem__(self, key):
-        return self.fields[key]
-
-    def __setitem__(self, key, value):
-        self.fields[key] = value
 
     def __hash__(self):
         return hash((self.fields['Package'],
@@ -144,16 +174,131 @@ class Package(object):
                  other.fields['Version'],
                  other.fields['Architecture']))
 
-    def __ne__(self, other):
-        return not(self == other)
+
+class Source(IndexUnit):
+    """"Source" describes the unit of the "Source" index."""
+
+    def __init__(self):
+        super(Source, self).__init__()
+
+    def parse_dsc(self, dscfile, location, mtime):
+        """Parse the dsc control file.
+
+        Keyword arguments:
+        dscfile - path to dsc file (string).
+        location - location of the dsc file on the target host (string).
+        mtime - modification time (float).
+        """
+        with open(dscfile) as file:
+            self.parse_string(file.read())
+
+        # Add "Directory" field (https://wiki.debian.org/DebianRepository/Format#Directory).
+        self.fields['Directory'] = os.path.dirname(location)
+
+        # Add information about the dsc file to checksums.
+        size = os.path.getsize(dscfile)
+        file_information = '%i %s' % (size, os.path.basename(location))
+
+        file_fields = {
+            'Files': 'md5',
+            'Checksums-Sha1': 'sha1',
+            'Checksums-Sha256': 'sha256'
+        }
+
+        for field, checksum_type in file_fields.items():
+            if self.fields[field]:
+                self.fields[field] = '%s\n %s %s' % (
+                    self.fields[field],
+                    file_checksum(dscfile, checksum_type),
+                    file_information)
+
+    def parse_string(self, data):
+        """Parse control file.
+
+        Keyword arguments:
+        data - control file (string).
+        """
+        key = None
+        value = None
+
+        result = collections.OrderedDict()
+        for line in data.strip().split('\n'):
+            if line.startswith(' '):
+                # Multiline field case
+                # (https://www.debian.org/doc/debian-policy/ch-controlfields.html#syntax-of-control-files).
+                value = '%s\n%s' % (value, line)
+            else:
+                if key:
+                    # Save the key: value pair, read in the previous iteration.
+                    result[key] = value.strip(' ')
+                key, value = line.split(':', 1)
+                # We need to replace "Source" key to the "Package" according to
+                # https://wiki.debian.org/DebianRepository/Format#A.22Sources.22_Indices
+                if key == 'Source':
+                    key = 'Package'
+
+        if key:
+            # Save the result of the last iteration.
+            result[key] = value.strip(' ')
+
+        self.fields = result
 
 
-class PackageList(object):
+class Index(object):
+    """Describes the common part of an index."""
+
+    def __init__(self, component='main'):
+        self.component = component
+        self.units = set()
+
+    def parse_gzip_file(self, filename):
+        """Parse compressed "Index" file.
+
+        Keyword arguments:
+        filename - path (string).
+        """
+        with gzip.open(filename) as f:
+            self.parse_string(f.read())
+
+    def parse_plain_file(self, filename):
+        """Parse "Index" file.
+
+        Keyword arguments:
+        filename - path (string).
+        """
+        with open(filename) as f:
+            self.parse_string(f.read())
+
+    def parse_file(self, filename):
+        """Parse compressed or plain "Index" file.
+
+        Keyword arguments:
+        filename - path (string).
+        """
+        filetype = mimetypes.guess_type(filename)
+        if filetype[1] is None:
+            self.parse_plain_file(filename)
+        elif filetype[1] == 'gzip':
+            self.parse_gzip_file(filename)
+        else:
+            raise RuntimeError("Unsupported Sources type: '%s'" % filetype[1])
+
+    def dump_string(self):
+        """Return the content of the index in text format."""
+        result = []
+
+        for unit in self.units:
+            result.append(unit.dump_string())
+
+        return '\n\n'.join(result) + '\n'
+
+
+class PackageIndex(Index):
+    """"PackageIndex" describes the "Package" index."""
 
     def __init__(self, component='main', arch='x86_64'):
-        self.component = component
+        super(PackageIndex, self).__init__(component)
         self.arch = arch
-        self.packages = set()
 
     def parse_string(self, data):
         packages = set()
@@ -165,35 +310,30 @@ class PackageList(object):
             pkg.parse_string(entry)
             packages.add(pkg)
 
-        self.packages = packages
+        self.units = packages
 
-    def add_deb_file(self, filename, relative_path):
-        pass
 
-    def parse_gzip_file(self, filename):
-        with gzip.open(filename) as f:
-            self.parse_string(f.read())
+class SourceIndex(Index):
+    """"SourceIndex" describes the "Source" index."""
 
-    def parse_plain_file(self, filename):
-        with open(filename) as f:
-            self.parse_string(f.read())
+    def __init__(self, component='main'):
+        super(SourceIndex, self).__init__(component)
 
-    def parse_file(self, filename):
-        filetype = mimetypes.guess_type(filename)
-        if filetype[1] is None:
-            self.parse_plain_file(filename)
-        elif filetype[1] == 'gzip':
-            self.parse_gzip_file(filename)
-        else:
-            raise RuntimeError("Unsupported Packages type: '%s'" % filetype[1])
+    def parse_string(self, data):
+        """Parse "Sources" file (source index).
 
-    def dump_string(self):
-        result = []
+        Keyword arguments:
+        data - "Source" index (string).
+        """
+        sources = set()
+        for entry in data.strip().split('\n\n'):
+            if entry.strip() == "":
+                continue
+            src = Source()
+            src.parse_string(entry)
+            sources.add(src)
 
-        for pkg in self.packages:
-            result.append(pkg.dump_string())
-
-        return '\n\n'.join(result) + '\n'
+        self.units = sources
 
 
 class Release(object):
@@ -255,29 +395,68 @@ class Release(object):
         return "\n".join(result) + '\n'
 
 
-def split_pkg_path(pkg_path):
+class RepoInfo(object):
+    """RepoInfo accumulate information about the processed
+    repository to simplify work.
+    """
 
-    # We assume that DEB file format is the following, with optional <revision>, <dist> and <arch>
-    # <package>_<version>.<revision>-<dist>_<arch>.deb
+    def __init__(self, storage):
+        # storage - storage with repositories (Storage object).
+        self.storage = storage
+        # package_index_list - list of the package index (dictionary
+        #                      (dist, component, arch) to PackageIndex object).
+        self.package_index_list = collections.defaultdict(PackageIndex)
+        # source_index_list - list of the source index (dictionary
+        #                     (dist, component, arch) to SourceIndex object).
+        self.source_index_list = collections.defaultdict(SourceIndex)
+        # dists - list of distributions (set of strings).
+        self.dists = set()
+        # checksums - files checksums (dictionary).
+        self.checksums = collections.defaultdict(dict)
+        # sizes - files sizes (dictionary)
+        self.sizes = collections.defaultdict(dict)
+        # components - distributions components (dictionary).
+        self.components = collections.defaultdict(set)
+        # architectures - architectures supported in distributions (dictionary).
+        self.architectures = collections.defaultdict(set)
 
-    expr = r'^(?P<package>[^_]+)_(?P<version>[0-9]+(\.[0-9]+){2,3}(\.g[a-f0-9]+)?\-[0-9])(\.(?P<revision>[^\-]+))?([\-]?(?P<dist>[^_]+))?_(?P<arch>[^\.]+)\.deb$'
-    match_package = re.match(expr, pkg_path)
+
+def split_control_file_path(path, ctrl_type):
+    """Return the distribution, architecture and component relevant control file.
+
+    Keyword arguments:
+    path - path to control file (string).
+    ctrl_type - type of the control file(string: "src" / "binary")
+    """
+
+    dist = ''
+    arch = ''
+
+    if ctrl_type == 'binary':
+        # We assume that DEB file format is the following, with optional <revision>, <dist> and <arch>
+        # <package>_<version>.<revision>-<dist>_<arch>.deb
+
+        expr = r'^(?P<package>[^_]+)_(?P<version>[0-9]+(\.[0-9]+){2,3}(\.g[a-f0-9]+)?\-[0-9])(\.(?P<revision>[^\-]+))?([\-]?(?P<dist>[^_]+))?_(?P<arch>[^\.]+)\.deb$'
+
+        match_package = re.match(expr, path)
+        if not match_package:
+            return None
+
+        dist = match_package.group('dist')
+        arch = match_package.group('arch') or 'all'
 
     # The distribution information may be missing in the file name,
     # but present in the path.
-    match_path = re.match('^pool/(?P<dist>[^/]+)/main', pkg_path)
-
-    if not match_package:
-        return None
+    match_path = re.match('^pool/(?P<dist>[^/]+)/main', path)
 
     component = 'main'
 
-    dist = match_package.group('dist') or match_path.group('dist')
+    dist = dist or match_path.group('dist')
     if dist is None:
         dist = 'all'
-    arch = match_package.group('arch')
-    if arch is None:
-        arch = 'all'
+
+    if ctrl_type == 'src':
+        arch = 'source'
 
     return (dist, component, arch)
 
@@ -300,45 +479,143 @@ def save_malformed_list(storage, dist, malformed_list):
         storage.delete_file(file)
 
 
-def update_repo(storage, sign, tempdir, force=False):
-    dists = set()
-    package_lists = collections.defaultdict(PackageList)
+def process_index_file(repo_info, path, dist, component, arch, index_type):
+    """Process an index file ("Packages" / "Sources").
 
+    Keyword arguments:
+    repo_info - information about the processed repository (RepoInfo object).
+    path - path to the index file (string).
+    dist - distribution (string).
+    component - repository area (string).
+    arch - architecture (string).
+    index_type - type of index (string: "sources" / "packages").
+    """
+
+    index = None
+
+    if index_type == 'packages':
+        index = PackageIndex()
+    elif index_type == 'sources':
+        index = SourceIndex()
+    else:
+        raise(RuntimeError('Unknown index type: ' + index_type))
+
+    index.parse_string(repo_info.storage.read_file(path).decode('utf-8'))
+    if index_type == 'packages':
+        repo_info.package_index_list[(dist, component, arch)] = index
+    elif index_type == 'sources':
+        repo_info.source_index_list[(dist, component, arch)] = index
+
+
+def read_release_and_indices(repo_info):
+    """Read the "Release" files from "dists/$DIST/Release"
+    and "Packages" files.
+
+    Keyword arguments:
+    repo_info - information about the processed repository (RepoInfo object).
+    """
     expr = r'^dists/([^/]*)/Release$'
-    for file_path in storage.files('dists'):
+    for file_path in repo_info.storage.files('dists'):
         match = re.match(expr, file_path)
 
         if not match:
             continue
 
         dist = match.group(1)
-        dists.add(dist)
+        repo_info.dists.add(dist)
 
         release = Release()
-        release.parse_string(storage.read_file('dists/%s/Release' %
-            dist).decode('utf-8'))
+        release.parse_string(repo_info.storage.read_file('dists/%s/Release' %
+                                                         dist).decode('utf-8'))
 
         components = release['Components'].split(' ')
         architectures = release['Architectures'].split(' ')
 
         for component in components:
+            # In fact, we support only "main".
             for arch in architectures:
-                subdir = 'source' if arch == 'source' else 'binary-%s' % arch
+                # Process the "Packages" indices.
+                if arch == 'source':
+                    # The "source" case is processed below as special.
+                    # We have few reasons for this:
+                    # - several differences in processing.
+                    # - often "source" architecture is not specified,
+                    #   but "Source" index exists.
+                    continue
 
-                package_list = PackageList()
-                package_list.parse_string(
-                    storage.read_file('dists/%s/%s/%s/Packages' %
-                        (dist, component, subdir)).decode('utf-8'))
+                path = 'dists/%s/%s/binary-%s/Packages' % (dist, component, arch)
+                process_index_file(repo_info, path, dist, component,
+                                   arch, 'packages')
 
-                package_lists[(dist, component, arch)] = package_list
+            # Process the "Source" index.
+            path = 'dists/%s/%s/source/Sources' % (dist, component)
+            if repo_info.storage.exists(path):
+                process_index_file(repo_info, path, dist, component,
+                                   'source', 'sources')
 
+
+def calculate_package_checksums(package, file_path):
+    """Calculate the checksums of the file and add it to the Package object.
+
+    Keyword arguments:
+    package - processed package (Package object).
+    file - path to the file (string).
+    """
+    checksum_names = {'md5': 'MD5Sum', 'sha1': 'SHA1', 'sha256': 'SHA256'}
+    for checksum_type in ['md5', 'sha1', 'sha256']:
+        checksum = file_checksum(file_path, checksum_type)
+        checksum_name = checksum_names[checksum_type]
+        package[checksum_name] = checksum
+
+
+def get_mtimes(index_list):
+    """Read the mtimes of files from the index.
+
+    Keyword arguments:
+    index_list - list of the indices (dictionary
+                 (dist, component, arch) to Index object).
+
+    Return the dictionary "filename to mtime".
+    """
     mtimes = {}
-    for package_list in package_lists.values():
-        for package in package_list.packages:
-            if 'FileTime' in package.fields:
-                mtimes[package['Filename'].lstrip(
-                    '/')] = float(package['FileTime'])
+    for index in index_list.values():
+        for unit in index.units:
+            if 'FileTime' in unit.fields and 'Filename' in unit.fields:
+                mtimes[unit['Filename'].lstrip(
+                    '/')] = float(unit['FileTime'])
 
+    return mtimes
+
+
+def process_index_units(repo_info, tempdir, index_type, force=False):
+    """Add information about changed files.
+
+    Keyword arguments:
+    repo_info - information about the processed repository (RepoInfo object).
+    tempdir - path to the directory for storing temporary files (string).
+    index_type - type of index (string: "sources" / "packages").
+    force - skip a malformed package without raising an error (bool).
+    """
+
+    index_list = None
+    ctrl_type = ''
+    expr = ''
+    tmp_filename = ''
+
+    if index_type == 'packages':
+        index_list = repo_info.package_index_list
+        ctrl_type = 'binary'
+        expr = r'^.*\.deb$'
+        tmp_filename = 'package.deb'
+    elif index_type == 'sources':
+        index_list = repo_info.source_index_list
+        ctrl_type = 'src'
+        expr = r'^.*\.dsc$'
+        tmp_filename = 'source.dsc'
+    else:
+        raise(RuntimeError('Unknown index type: ' + index_type))
+
+    mtimes = get_mtimes(index_list)
     tmpdir = tempfile.mkdtemp('', 'tmp', tempdir)
 
     # Dictionary (dist to malformed packages list).
@@ -346,25 +623,23 @@ def update_repo(storage, sign, tempdir, force=False):
     # (some problems encountered during processing).
     malformed_lists = {}
 
-    expr = r'^.*\.deb$'
-    for file_path in storage.files('pool'):
+    for file_path in repo_info.storage.files('pool'):
         file_path = file_path.lstrip('/')
 
         match = re.match(expr, file_path)
-
         if not match:
             continue
 
-        components = split_pkg_path(file_path)
+        components = split_control_file_path(file_path, ctrl_type)
 
         if not components:
             print("Failed to parse file name: '%s'" % file_path)
             sys.exit(1)
 
         dist, _, _ = components
-        dists.add(dist)
+        repo_info.dists.add(dist)
 
-        mtime = storage.mtime(file_path)
+        mtime = repo_info.storage.mtime(file_path)
         if file_path in mtimes:
             if str(mtime) == str(mtimes[file_path]):
                 print("Skipping: '%s'" % file_path)
@@ -373,103 +648,144 @@ def update_repo(storage, sign, tempdir, force=False):
         else:
             print("Adding: '%s'" % file_path)
 
-        storage.download_file(file_path, os.path.join(tmpdir, 'package.deb'))
+        repo_info.storage.download_file(file_path, os.path.join(tmpdir, tmp_filename))
 
-        package = Package()
-        local_file = os.path.join(tmpdir, 'package.deb')
-
-        try:
-            package.parse_deb(local_file)
-        except Exception as err:
-            print("Can't parse '%s':\n%s" % (file_path, str(err)))
-            if force:
-                if dist in malformed_lists:
-                    malformed_lists[dist].append(file_path)
+        local_file = os.path.join(tmpdir, tmp_filename)
+        unit = None
+        if index_type == 'packages':
+            unit = Package()
+            try:
+                unit.parse_deb(local_file)
+            except Exception as err:
+                print("Can't parse '%s':\n%s" % (file_path, str(err)))
+                if force:
+                    if dist in malformed_lists:
+                        malformed_lists[dist].append(file_path)
+                    else:
+                        malformed_lists[dist] = [file_path]
+                    continue
                 else:
-                    malformed_lists[dist] = [file_path]
-                continue
-            else:
-                raise err
+                    raise err
 
-        package['Filename'] = file_path
-        package['Size'] = os.path.getsize(local_file)
-        package['FileTime'] = mtime
+            unit['Size'] = os.path.getsize(local_file)
+            calculate_package_checksums(unit, local_file)
+        elif index_type == 'sources':
+            unit = Source()
+            unit.parse_dsc(local_file, file_path, mtime)
 
-        checksum_names = {'md5': 'MD5Sum', 'sha1': 'SHA1', 'sha256': 'SHA256'}
-        for checksum_type in ['md5', 'sha1', 'sha256']:
-            checksum = file_checksum(local_file, checksum_type)
-            checksum_name = checksum_names[checksum_type]
-            package[checksum_name] = checksum
+        unit['Filename'] = file_path
+        unit['FileTime'] = mtime
 
-        packages = package_lists[components].packages
+        units = index_list[components].units
 
-        if package in packages:
-            packages.remove(package)
-        packages.add(package)
+        # In case of updating the "unit", we need to remove information
+        # from "index" about the old and add information about the new one.
+        if unit in units:
+            units.remove(unit)
+        units.add(unit)
 
-    for dist in dists:
-        malformed_list = malformed_lists.get(dist, [])
-        save_malformed_list(storage, dist, malformed_list)
+    if index_type == 'packages':
+        for dist in repo_info.dists:
+            malformed_list = malformed_lists.get(dist, [])
+            save_malformed_list(repo_info.storage, dist, malformed_list)
 
-    checksums = collections.defaultdict(dict)
-    sizes = collections.defaultdict(dict)
-    components = collections.defaultdict(set)
-    architectures = collections.defaultdict(set)
 
-    for key in package_lists:
+def update_index_files(repo_info, index_type):
+    """Update the index files ("Sources" / "Packages").
+
+    Keyword arguments:
+    repo_info - information about the processed repository (RepoInfo object).
+    index_type - type of index (string: "sources" / "packages").
+    """
+
+    index_filename = ''
+    index_list = None
+    if index_type == 'packages':
+        index_filename = 'Packages'
+        index_list = repo_info.package_index_list
+    elif index_type == 'sources':
+        index_filename = 'Sources'
+        index_list = repo_info.source_index_list
+    else:
+        raise(RuntimeError('Unknown index type: ' + index_type))
+
+    for key in index_list:
         dist, component, arch = key
         subdir = 'source' if arch == 'source' else 'binary-%s' % arch
 
-        components[dist].add(component)
-        architectures[dist].add(arch)
+        repo_info.components[dist].add(component)
+        if index_type == 'packages':
+            repo_info.architectures[dist].add(arch)
 
-        package_list = package_lists[key]
+        index = index_list[key]
 
         prefix = 'dists/%s/' % dist
 
-        pkg_file_path = '%s/%s/Packages' % (component, subdir)
-        pkg_file = package_list.dump_string()
+        file_path = '%s/%s/%s' % (component, subdir, index_filename)
+        file = index.dump_string()
 
-        pkg_file_gzip_path = '%s/%s/Packages.gz' % (component, subdir)
-        pkg_file_gzip = gzip_bytes(pkg_file.encode('utf-8'))
+        file_gzip_path = '%s/%s/%s.gz' % (component, subdir, index_filename)
+        file_gzip = gzip_bytes(file.encode('utf-8'))
 
-        pkg_file_bz2_path = '%s/%s/Packages.bz2' % (component, subdir)
-        pkg_file_bz2 = bz2_bytes(pkg_file.encode('utf-8'))
+        file_bz2_path = '%s/%s/%s.bz2' % (component, subdir, index_filename)
+        file_bz2 = bz2_bytes(file.encode('utf-8'))
 
-        storage.write_file(prefix + pkg_file_path, pkg_file.encode('utf-8'))
-        storage.write_file(prefix + pkg_file_gzip_path, pkg_file_gzip)
-        storage.write_file(prefix + pkg_file_bz2_path, pkg_file_bz2)
+        repo_info.storage.write_file(prefix + file_path, file.encode('utf-8'))
+        repo_info.storage.write_file(prefix + file_gzip_path, file_gzip)
+        repo_info.storage.write_file(prefix + file_bz2_path, file_bz2)
 
-        for path in [pkg_file_path, pkg_file_gzip_path, pkg_file_bz2_path]:
-            data = storage.read_file(prefix + path)
-            sizes[dist][path] = len(data)
+        for path in [file_path, file_gzip_path, file_bz2_path]:
+            data = repo_info.storage.read_file(prefix + path)
+            repo_info.sizes[dist][path] = len(data)
 
             for checksum_type in ['md5', 'sha1', 'sha256']:
                 h = hashlib.new(checksum_type)
                 h.update(data)
 
-                checksums[dist][(checksum_type, path)] = h.hexdigest()
+                repo_info.checksums[dist][(checksum_type, path)] = h.hexdigest()
 
+
+def sign_release_file(storage, release_str, dist):
+    """Sign the "Release" file.
+
+    Keyword arguments:
+    storage - storage with repositories (Storage object).
+    release_str - string containing the "Release" file (string).
+    dist - distribution name (string).
+    """
+    keyname = os.getenv('GPG_SIGN_KEY')
+    release_signature = gpg_sign_string(release_str, keyname)
+    release_inline = gpg_sign_string(release_str, keyname, True)
+    storage.write_file('dists/%s/Release.gpg' % dist, release_signature)
+    storage.write_file('dists/%s/InRelease' % dist, release_inline)
+
+
+def update_release_files(repo_info, sign):
+    """Update the "Release" files.
+
+    Keyword arguments:
+    repo_info - information about the processed repository (RepoInfo object).
+    """
     creation_date = rfc_2822_now_str()
 
-    for dist in dists:
+    for dist in repo_info.dists:
         release = Release()
 
         release['Origin'] = os.getenv('MKREPO_DEB_ORIGIN') or 'Repo generator'
         release['Label'] = os.getenv('MKREPO_DEB_LABEL') or 'Repo generator'
         release['Codename'] = dist
         release['Date'] = creation_date
-        release['Architectures'] = ' '.join(architectures[dist])
-        release['Components'] = ' '.join(components[dist])
+        release['Architectures'] = ' '.join(repo_info.architectures[dist])
+        release['Components'] = ' '.join(repo_info.components[dist])
         release['Description'] = os.getenv('MKREPO_DEB_DESCRIPTION')\
             or 'Repo generator'
 
         checksum_lines = collections.defaultdict(list)
         checksum_names = {'md5': 'MD5Sum', 'sha1': 'SHA1', 'sha256': 'SHA256'}
-        for checksum_key, checksum_value in checksums[dist].items():
+        for checksum_key, checksum_value in repo_info.checksums[dist].items():
             checksum_type, path = checksum_key
 
-            file_size = sizes[dist][path]
+            file_size = repo_info.sizes[dist][path]
             checksum_name = checksum_names[checksum_type]
 
             line = ' %s %s %s' % (checksum_value, file_size, path)
@@ -480,12 +796,27 @@ def update_repo(storage, sign, tempdir, force=False):
                 '\n' + '\n'.join(checksum_lines[checksum_name])
 
         release_str = release.dump_string()
-        storage.write_file('dists/%s/Release' % dist,
-            release_str.encode('utf-8'))
+        repo_info.storage.write_file('dists/%s/Release' % dist,
+                           release_str.encode('utf-8'))
 
         if sign:
-            keyname = os.getenv('GPG_SIGN_KEY')
-            release_signature = gpg_sign_string(release_str, keyname)
-            release_inline = gpg_sign_string(release_str, keyname, True)
-            storage.write_file('dists/%s/Release.gpg' % dist, release_signature)
-            storage.write_file('dists/%s/InRelease' % dist, release_inline)
+            sign_release_file(repo_info.storage, release_str, dist)
+
+
+def update_repo(storage, sign, tempdir, force=False):
+    """Update metainformation of the repository.
+
+    Keyword arguments:
+    storage - storage with repositories (Storage object).
+    sign - whether to sign the "Release" files (bool).
+    tempdir - path to the directory for storing temporary files (string).
+    force - skip a malformed package without raising an error (bool).
+    """
+    repo_info = RepoInfo(storage)
+
+    read_release_and_indices(repo_info)
+    process_index_units(repo_info, tempdir, 'packages', force)
+    process_index_units(repo_info, tempdir, 'sources')
+    update_index_files(repo_info, 'packages')
+    update_index_files(repo_info, 'sources')
+    update_release_files(repo_info, sign)
