@@ -528,8 +528,8 @@ def read_release_and_indices(repo_info):
         release.parse_string(repo_info.storage.read_file('dists/%s/Release' %
                                                          dist).decode('utf-8'))
 
-        components = release['Components'].split(' ')
-        architectures = release['Architectures'].split(' ')
+        components = release['Components'].split()
+        architectures = release['Architectures'].split()
 
         for component in components:
             # In fact, we support only "main".
