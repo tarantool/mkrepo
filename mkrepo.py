@@ -44,7 +44,8 @@ def update_repo(path, args):
                                  prefix,
                                  args.s3_access_key_id,
                                  args.s3_secret_access_key,
-                                 args.s3_region)
+                                 args.s3_region,
+                                 args.s3_public_read)
 
     else:
         stor = storage.FilesystemStorage(path)
@@ -79,6 +80,12 @@ def main():
     parser.add_argument(
         '--s3-region',
         help='S3 region name')
+
+    parser.add_argument(
+        '--s3-public-read',
+        action='store_true',
+        default=False,
+        help='set read-only permission on files uploaded to S3 to an anonymous users')
 
     parser.add_argument(
         '--sign',
