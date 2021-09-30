@@ -127,9 +127,11 @@ class S3Storage(Storage):
                  prefix="",
                  aws_access_key_id=None,
                  aws_secret_access_key=None,
-                 aws_region=None):
+                 aws_region=None,
+                 aws_public_read=False):
         self.bucket = bucket
         self.prefix = prefix
+        self.public_read = aws_public_read
 
         self.client = boto3.client('s3', endpoint_url=endpoint,
                                    aws_access_key_id=aws_access_key_id,
@@ -160,7 +162,13 @@ class S3Storage(Storage):
         buf.write(data)
         buf.seek(0)
 
-        s3obj.upload_fileobj(buf)
+        # Set the arguments of the uploaded file according
+        # to the "S3Storage" settings.
+        extra_args = {}
+        if self.public_read:
+            extra_args['ACL'] = 'public-read'
+
+        s3obj.upload_fileobj(buf, ExtraArgs=extra_args)
 
     def download_file(self, key, destination):
         fullkey = os.path.normpath(os.path.join(self.prefix, key.lstrip('/')))
@@ -170,7 +178,14 @@ class S3Storage(Storage):
     def upload_file(self, key, source):
         fullkey = os.path.normpath(os.path.join(self.prefix, key))
 
-        self.client.upload_file(source, self.bucket, fullkey)
+        # Set the arguments of the uploaded file according
+        # to the "S3Storage" settings.
+        extra_args = {}
+        if self.public_read:
+            extra_args['ACL'] = 'public-read'
+
+        self.client.upload_file(source, self.bucket, fullkey,
+                                ExtraArgs=extra_args)
 
     def delete_file(self, key):
         fullkey = os.path.normpath(os.path.join(self.prefix, key.lstrip('/')))

@@ -39,6 +39,7 @@ So you may skip them in command line invocation in case you have aws config.
             [--s3-secret-access-key S3_SECRET_ACCESS_KEY]
             [--s3-endpoint S3_ENDPOINT]
             [--s3-region S3_REGION]
+            [--s3-public-read]
             [--sign]
             [--force]
             path [path ...]
@@ -49,6 +50,8 @@ So you may skip them in command line invocation in case you have aws config.
 * `--s3-secret-access-key` - /(optional)/ specify S3 secret key
 * `--s3-endpoint` - /(optional)/ specify S3 server URI
 * `--s3-region` - /(optional)/ specify S3 region (default is us-east-1)
+* `--s3-public-read` - /(optional)/ set read-only permission on files uploaded
+  to S3 for anonymous users
 * `--sign` - /(optional) sign package metadata
 * `--force` - /(optional) when adding packages to the index, the malformed one
   will be skipped. By default, a malformed package will cause the utility to
