@@ -21,6 +21,14 @@ Create an s3 bucket named e.g. `builds` and put a sample package `package.rpm` t
 
 After this, you will find all metadata generated in `s3://builds/rpmrepo/repodata`
 
+## Run tests
+
+To run the tests, use the following command::
+
+``` bash
+make test
+```
+
 ## Dependencies
 
 Python libraries:
