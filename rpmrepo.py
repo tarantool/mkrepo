@@ -781,7 +781,12 @@ def save_malformed_list(storage, malformed_list):
         storage.delete_file(file)
 
 
-def update_repo(storage, sign, tempdir, force=False):
+def parse_metafiles(storage):
+    """Parse metafiles.
+
+    Keyword arguments:
+    storage - storage with repositories (Storage object).
+    """
     filelists = {}
     primary = {}
     revision = "0"
@@ -800,6 +805,12 @@ def update_repo(storage, sign, tempdir, force=False):
         initial_primary = primary['location']
         data = storage.read_file(initial_primary)
         primary = parse_primary(gunzip_bytes(data))
+
+    return filelists, primary, revision, initial_filelists, initial_primary
+
+
+def update_repo(storage, sign, tempdir, force=False):
+    filelists, primary, revision, initial_filelists, initial_primary = parse_metafiles(storage)
 
     recorded_files = set()
     for package in primary.values():
