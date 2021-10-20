@@ -120,8 +120,8 @@ def parse_repomd(data):
     root = ET.fromstring(data)
     namespaces = {'repo': 'http://linux.duke.edu/metadata/repo'}
 
-    filelists = None
-    primary = None
+    filelists = {}
+    primary = {}
 
     # The revision is an optional XML element and may be absent.
     revision = '0'
@@ -798,18 +798,18 @@ def parse_metafiles(storage):
 
         filelists, primary, revision = parse_repomd(data)
 
-        initial_filelists = filelists['location']
+        initial_filelists = filelists.get('location', None)
         # The file can be specified in repomd.xml but doesn't exist.
-        if storage.exists(initial_filelists):
+        if initial_filelists and storage.exists(initial_filelists):
             data = storage.read_file(initial_filelists)
             filelists = parse_filelists(gunzip_bytes(data))
         else:
             initial_filelists = None
             filelists = {}
 
-        initial_primary = primary['location']
+        initial_primary = primary.get('location', None)
         # The file can be specified in repomd.xml but doesn't exist.
-        if storage.exists(initial_primary):
+        if initial_primary and storage.exists(initial_primary):
             data = storage.read_file(initial_primary)
             primary = parse_primary(gunzip_bytes(data))
         else:

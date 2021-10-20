@@ -39,3 +39,22 @@ class TestRPMRepo(unittest.TestCase):
         self.assertEqual(primary, {})
         self.assertIsNone(initial_filelists)
         self.assertIsNone(initial_primary)
+
+    def test_work_with_missing_information_about_metafiles(self):
+        """The test checks the case when in "repomd" information about some metafiles
+        are absent.
+        """
+        repomd_data = ''
+        repomd_data += '<?xml version="1.0" encoding="UTF-8"?>\n'
+        repomd_data += '<repomd xmlns="http://linux.duke.edu/metadata/repo" xmlns:rpm="http://linux.duke.edu/metadata/rpm">\n'
+        repomd_data += '  <revision>1</revision>\n'
+        repomd_data += '</repomd>\n'
+
+        storage = DummyStorage()
+        storage.write_file('repodata/repomd.xml', repomd_data.encode('utf-8'))
+
+        filelists, primary, revision, initial_filelists, initial_primary = rpmrepo.parse_metafiles(storage)
+        self.assertEqual(filelists, {})
+        self.assertEqual(primary, {})
+        self.assertIsNone(initial_filelists)
+        self.assertIsNone(initial_primary)
