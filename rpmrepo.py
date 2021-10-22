@@ -120,8 +120,8 @@ def parse_repomd(data):
     root = ET.fromstring(data)
     namespaces = {'repo': 'http://linux.duke.edu/metadata/repo'}
 
-    filelists = None
-    primary = None
+    filelists = {}
+    primary = {}
 
     # The revision is an optional XML element and may be absent.
     revision = '0'
@@ -781,7 +781,12 @@ def save_malformed_list(storage, malformed_list):
         storage.delete_file(file)
 
 
-def update_repo(storage, sign, tempdir, force=False):
+def parse_metafiles(storage):
+    """Parse metafiles.
+
+    Keyword arguments:
+    storage - storage with repositories (Storage object).
+    """
     filelists = {}
     primary = {}
     revision = "0"
@@ -793,13 +798,29 @@ def update_repo(storage, sign, tempdir, force=False):
 
         filelists, primary, revision = parse_repomd(data)
 
-        initial_filelists = filelists['location']
-        data = storage.read_file(initial_filelists)
-        filelists = parse_filelists(gunzip_bytes(data))
+        initial_filelists = filelists.get('location', None)
+        # The file can be specified in repomd.xml but doesn't exist.
+        if initial_filelists and storage.exists(initial_filelists):
+            data = storage.read_file(initial_filelists)
+            filelists = parse_filelists(gunzip_bytes(data))
+        else:
+            initial_filelists = None
+            filelists = {}
 
-        initial_primary = primary['location']
-        data = storage.read_file(initial_primary)
-        primary = parse_primary(gunzip_bytes(data))
+        initial_primary = primary.get('location', None)
+        # The file can be specified in repomd.xml but doesn't exist.
+        if initial_primary and storage.exists(initial_primary):
+            data = storage.read_file(initial_primary)
+            primary = parse_primary(gunzip_bytes(data))
+        else:
+            initial_primary = None
+            primary = {}
+
+    return filelists, primary, revision, initial_filelists, initial_primary
+
+
+def update_repo(storage, sign, tempdir, force=False):
+    filelists, primary, revision, initial_filelists, initial_primary = parse_metafiles(storage)
 
     recorded_files = set()
     for package in primary.values():
@@ -879,9 +900,18 @@ def update_repo(storage, sign, tempdir, force=False):
     storage.write_file(primary_name, primary_gz)
     storage.write_file('repodata/repomd.xml', repomd_str.encode('utf-8'))
 
-    if initial_filelists:
+    # Here we are deleting few old metafiles.
+    # The difference in names between the old and new files (in case the new
+    # packages were not added to the repository) exists because part of the
+    # name is the sha256 hash from  the".gz" files, wich includes information
+    # about time when it was created (in seconds (float)). In my opinion, this
+    # difference is not obvious on the one hand and may cease to exist on the
+    # other hand (if we start to set timestamp according to a different logic
+    # or if the hashsum is removed from the filename).
+    # Let's check the names for equivalence.
+    if initial_filelists and initial_filelists != filelists_name:
         storage.delete_file(initial_filelists)
-    if initial_primary:
+    if initial_primary and initial_primary != primary_name:
         storage.delete_file(initial_primary)
 
     if sign:
