@@ -9,6 +9,7 @@ class DummyStorage(Storage):
     use the file system for use in tests.
     """
     def __init__(self):
+        super(Storage, self).__init__()
         self.fs = {}
 
     def read_file(self, key):
