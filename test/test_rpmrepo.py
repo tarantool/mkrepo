@@ -34,11 +34,14 @@ class TestRPMRepo(unittest.TestCase):
         storage = DummyStorage()
         storage.write_file('repodata/repomd.xml', repomd_data.encode('utf-8'))
 
-        filelists, primary, revision, initial_filelists, initial_primary = rpmrepo.parse_metafiles(storage)
+        (filelists, primary, others, revision,
+         initial_filelists, initial_primary, initial_others) = rpmrepo.parse_metafiles(storage)
         self.assertEqual(filelists, {})
         self.assertEqual(primary, {})
+        self.assertEqual(others, {})
         self.assertIsNone(initial_filelists)
         self.assertIsNone(initial_primary)
+        self.assertIsNone(initial_others)
 
     def test_work_with_missing_information_about_metafiles(self):
         """The test checks the case when in "repomd" information about some metafiles
@@ -53,8 +56,11 @@ class TestRPMRepo(unittest.TestCase):
         storage = DummyStorage()
         storage.write_file('repodata/repomd.xml', repomd_data.encode('utf-8'))
 
-        filelists, primary, revision, initial_filelists, initial_primary = rpmrepo.parse_metafiles(storage)
+        (filelists, primary, others, revision,
+         initial_filelists, initial_primary, initial_others) = rpmrepo.parse_metafiles(storage)
         self.assertEqual(filelists, {})
         self.assertEqual(primary, {})
+        self.assertEqual(others, {})
         self.assertIsNone(initial_filelists)
         self.assertIsNone(initial_primary)
+        self.assertIsNone(initial_others)
