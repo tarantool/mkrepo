@@ -25,6 +25,10 @@ try:
 except ImportError:
     import xml.etree.ElementTree as ET
 
+# Changelog limit is used to get only last CHANGELOG_LIMIT changelog lines.
+# Usually it takes last 10.
+CHANGELOG_LIMIT = 10
+
 
 def gzip_bytes(data):
     out = BytesIO()
@@ -122,6 +126,7 @@ def parse_repomd(data):
 
     filelists = {}
     primary = {}
+    other = {}
 
     # The revision is an optional XML element and may be absent.
     revision = '0'
@@ -144,8 +149,10 @@ def parse_repomd(data):
             filelists = result
         elif child.attrib['type'] == 'primary':
             primary = result
+        elif child.attrib['type'] == 'other':
+            other = result
 
-    return filelists, primary, revision
+    return filelists, primary, other, revision
 
 
 def parse_filelists(data):
@@ -377,6 +384,57 @@ def parse_primary(data):
     return packages
 
 
+def parse_other(data):
+    """Parse other.xml
+
+    Find 'other:changelog' and 'other:version' and
+    fill changelog, version and package.
+
+    Keyword Arguments:
+    data - The unparsed data of other.xml.gz (byte, default: None)
+
+    Return Parsed data as a packages (dict)
+    """
+    root = ET.fromstring(data)
+
+    namespaces = {'other': 'http://linux.duke.edu/metadata/other'}
+
+    packages = {}
+
+    for child in root:
+        if not child.tag.endswith('}package'):
+            continue
+
+        package_id = child.attrib['pkgid']
+        name = child.attrib['name']
+        arch = child.attrib['arch']
+        version = child.find('other:version', namespaces)
+        version = {
+            'ver': version.attrib['ver'],
+            'rel': version.attrib['rel'],
+            'epoch': version.attrib.get('epoch', '0'),
+        }
+
+        changelog_list = child.findall('other:changelog', namespaces)
+
+        changelog = []
+
+        for log in changelog_list:
+            changelog.append({
+                'author': log.attrib['author'],
+                'date': log.attrib['date'],
+                'text': log.text,
+            })
+
+        package = {'pkgid': package_id, 'name': name, 'arch': arch,
+                   'version': version, 'changelog': changelog}
+        nerv = (name, version['epoch'], version['rel'], version['ver'])
+
+        packages[nerv] = package
+
+    return packages
+
+
 def dump_primary(primary):
     res = ""
 
@@ -491,7 +549,102 @@ def parse_ver_str(ver_str):
     return (epoch, ver, rel)
 
 
-def get_with_decode(dictionary, key, default='' , encoding='utf-8'):
+def header_to_other(header, sha256):
+    """Method that decodes data for parsing in sha256
+
+    Keyword arguments:
+    header - data that get passed to decode (string, default: None)
+    sha256 - code format that is assigned for generating package id (string)
+
+    Return data from the header of xml tree (name, version, author, etc)
+    """
+    pkgid = sha256
+    name = get_with_decode(header, 'NAME', None)
+    arch = get_with_decode(header, 'ARCH', None)
+    epoch = header.get('EPOCH', '0')
+    rel = get_with_decode(header, 'RELEASE', None)
+    ver = get_with_decode(header, 'VERSION', None)
+    version = {'ver': ver, 'rel': rel, 'epoch': epoch}
+
+    package = {
+        'pkgid': pkgid,
+        'name': name,
+        'arch': arch,
+        'version': version,
+        'changelog': [],
+    }
+
+    changelog_name = header.get('CHANGELOGNAME', [])
+    if not isinstance(changelog_name, list):
+        changelog_name = [changelog_name]
+    changelog_text = header.get('CHANGELOGTEXT', [])
+    if not isinstance(changelog_text, list):
+        changelog_text = [changelog_text]
+    changelog_date = header.get('CHANGELOGTIME', [])
+    if not isinstance(changelog_date, list):
+        changelog_date = [changelog_date]
+
+    # get newest CHANGELOG_LIMIT lines in terms of time
+    # (initial commit is oldest), we order these lines as a createrepo does
+    # in reversed order (from old to new)
+    changelog_name = changelog_name[:CHANGELOG_LIMIT][::-1]
+    changelog_text = changelog_text[:CHANGELOG_LIMIT][::-1]
+    changelog_date = changelog_date[:CHANGELOG_LIMIT][::-1]
+
+    for date, author, text in zip(changelog_date, changelog_name, changelog_text):
+        package['changelog'].append({
+            'author': escape(author.decode('utf-8')),
+            'date': date,
+            'text': escape(text.decode('utf-8')),
+        })
+
+    nerv = (name, version['epoch'], version['rel'], version['ver'])
+    return nerv, package
+
+
+def dump_other(other):
+    """Generate other.xml.gz info
+
+    The method generates information for all packages in next structure
+    consequently:
+    <package pkgid="..." name="..." arch="..."
+        <version epoch="..." ver="..." rel="..."/>
+        <changelog author="..." date"...">...</changelog>
+    </package>
+
+    Keyword arguments:
+    other - other data for packages (dict)
+
+    Return full xml tree of an other data (string)
+    """
+    res = ""
+    res += '<?xml version="1.0" encoding="UTF-8"?>\n'
+    res += '<otherdata xmlns="http://linux.duke.edu/metadata/other" packages="%d">\n' % len(other)
+
+    for package in other.values():
+        res += '<package pkgid="%s" name="%s" arch="%s">\n' % (
+            package['pkgid'], package['name'], package['arch'])
+
+        ver = package['version']
+        log = package['changelog']
+
+        res += '  <version '
+        components = ' '.join(
+            ['%s="%s"' % (c, ver[c]) for c in ['epoch', 'ver', 'rel'] if ver[c]])
+        res += '%s/>\n' % components
+
+        for changelog in log:
+            res += '  <changelog author="%s" date="%s">%s</changelog>\n' % (
+                escape(changelog['author']), changelog['date'], escape(changelog['text']))
+
+        res += '</package>\n'
+
+    res += "</otherdata>"
+
+    return res
+
+
+def get_with_decode(dictionary, key, default='', encoding='utf-8'):
     res = dictionary.get(key, default)
     if res:
         res = res.decode(encoding)
@@ -718,17 +871,24 @@ def header_to_primary(
     return nerv, package
 
 
-def generate_repomd(filelists_str, filelists_gz, primary_str, primary_gz, revision):
+def generate_repomd(filelists_str, filelists_gz,
+                    primary_str, primary_gz,
+                    other_str, other_gz, revision):
     filelists_bytes = filelists_str.encode('utf-8')
     primary_bytes = primary_str.encode('utf-8')
+    other_bytes = other_str.encode('utf-8')
+
     filelists_str_sha256 = bytes_checksum(filelists_bytes, 'sha256')
     primary_str_sha256 = bytes_checksum(primary_bytes, 'sha256')
+    other_str_sha256 = bytes_checksum(other_bytes, 'sha256')
 
     filelists_gz_sha256 = bytes_checksum(filelists_gz, 'sha256')
     primary_gz_sha256 = bytes_checksum(primary_gz, 'sha256')
+    other_gz_sha256 = bytes_checksum(other_gz, 'sha256')
 
     filelists_name = 'repodata/%s-filelists.xml.gz' % filelists_gz_sha256
     primary_name = 'repodata/%s-primary.xml.gz' % primary_gz_sha256
+    other_name = 'repodata/%s-other.xml.gz' % other_gz_sha256
 
     nowdt = datetime.datetime.now()
     nowtuple = nowdt.timetuple()
@@ -757,6 +917,15 @@ def generate_repomd(filelists_str, filelists_gz, primary_str, primary_gz, revisi
     res += '    <timestamp>%s</timestamp>\n' % int(nowtimestamp)
     res += '    <size>%s</size>\n' % len(primary_gz)
     res += '    <open-size>%s</open-size>\n' % len(primary_bytes)
+    res += '  </data>\n'
+
+    res += '  <data type="other">\n'
+    res += '    <checksum type="sha256">%s</checksum>\n' % other_gz_sha256
+    res += '    <open-checksum type="sha256">%s</open-checksum>\n' % other_str_sha256
+    res += '    <location href="%s"/>\n' % other_name
+    res += '    <timestamp>%s</timestamp>\n' % int(nowtimestamp)
+    res += '    <size>%s</size>\n' % len(other_gz)
+    res += '    <open-size>%s</open-size>\n' % len(other_bytes)
     res += '  </data>\n'
 
     res += '</repomd>\n'
@@ -789,14 +958,16 @@ def parse_metafiles(storage):
     """
     filelists = {}
     primary = {}
+    others = {}
     revision = "0"
     initial_filelists = None
     initial_primary = None
+    initial_others = None
 
     if storage.exists('repodata/repomd.xml'):
         data = storage.read_file('repodata/repomd.xml')
 
-        filelists, primary, revision = parse_repomd(data)
+        filelists, primary, others, revision = parse_repomd(data)
 
         initial_filelists = filelists.get('location', None)
         # The file can be specified in repomd.xml but doesn't exist.
@@ -816,11 +987,21 @@ def parse_metafiles(storage):
             initial_primary = None
             primary = {}
 
-    return filelists, primary, revision, initial_filelists, initial_primary
+        initial_others = others.get('location', None)
+        if initial_others and storage.exists(initial_others):
+            data = storage.read_file(initial_others)
+            others = parse_other(gunzip_bytes(data))
+        else:
+            initial_others = None
+            others = {}
+
+    return (filelists, primary, others, revision,
+            initial_filelists, initial_primary, initial_others)
 
 
 def update_repo(storage, sign, tempdir, force=False):
-    filelists, primary, revision, initial_filelists, initial_primary = parse_metafiles(storage)
+    (filelists, primary, others, revision,
+     initial_filelists, initial_primary, initial_other) = parse_metafiles(storage)
 
     recorded_files = set()
     for package in primary.values():
@@ -875,9 +1056,11 @@ def update_repo(storage, sign, tempdir, force=False):
                                        rpminfo.header_start, rpminfo.header_end,
                                        size)
         _, flist = header_to_filelists(header, sha256)
+        _, other = header_to_other(header, sha256)
 
         primary[nerv] = prim
         filelists[nerv] = flist
+        others[nerv] = other
 
     save_malformed_list(storage, malformed_list)
 
@@ -885,19 +1068,27 @@ def update_repo(storage, sign, tempdir, force=False):
 
     filelists_str = dump_filelists(filelists)
     primary_str = dump_primary(primary)
+    other_str = dump_other(others)
+
     filelists_gz = gzip_bytes(filelists_str.encode('utf-8'))
     primary_gz = gzip_bytes(primary_str.encode('utf-8'))
+    other_gz = gzip_bytes(other_str.encode('utf-8'))
 
     repomd_str = generate_repomd(filelists_str, filelists_gz,
-                                 primary_str, primary_gz, revision)
+                                 primary_str, primary_gz,
+                                 other_str, other_gz, revision)
 
     filelists_gz_sha256 = bytes_checksum(filelists_gz, 'sha256')
     primary_gz_sha256 = bytes_checksum(primary_gz, 'sha256')
+    other_gz_sha256 = bytes_checksum(other_gz, 'sha256')
+
     filelists_name = 'repodata/%s-filelists.xml.gz' % filelists_gz_sha256
     primary_name = 'repodata/%s-primary.xml.gz' % primary_gz_sha256
+    other_name = 'repodata/%s-other.xml.gz' % other_gz_sha256
 
     storage.write_file(filelists_name, filelists_gz)
     storage.write_file(primary_name, primary_gz)
+    storage.write_file(other_name, other_gz)
     storage.write_file('repodata/repomd.xml', repomd_str.encode('utf-8'))
 
     # Here we are deleting few old metafiles.
@@ -913,6 +1104,8 @@ def update_repo(storage, sign, tempdir, force=False):
         storage.delete_file(initial_filelists)
     if initial_primary and initial_primary != primary_name:
         storage.delete_file(initial_primary)
+    if initial_other and initial_other != other_name:
+        storage.delete_file(initial_other)
 
     if sign:
         keyname = os.getenv('GPG_SIGN_KEY')
