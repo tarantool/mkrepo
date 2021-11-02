@@ -421,6 +421,20 @@ class RepoInfo(object):
         self.architectures = collections.defaultdict(set)
 
 
+def get_dist_from_path(path):
+    """Return the distribution information from the package path.
+
+    Keyword arguments:
+    path - path to control file (string).
+    """
+    dist = ''
+    match_path = re.match('^pool/(?P<dist>[^/]+)/main', path)
+    if match_path:
+        dist = match_path.group('dist')
+
+    return dist
+
+
 def split_control_file_path(path, ctrl_type):
     """Return the distribution, architecture and component relevant control file.
 
@@ -429,7 +443,6 @@ def split_control_file_path(path, ctrl_type):
     ctrl_type - type of the control file(string: "src" / "binary")
     """
 
-    dist = 'all'
     arch = ''
 
     if ctrl_type == 'binary':
@@ -467,11 +480,7 @@ def split_control_file_path(path, ctrl_type):
 
         arch = match_package.group('arch') or 'all'
 
-    # Get the distribution information from the package path.
-    match_path = re.match('^pool/(?P<dist>[^/]+)/main', path)
-    if match_path:
-        dist = match_path.group('dist')
-
+    dist = get_dist_from_path(path) or 'all'
     component = 'main'
 
     if ctrl_type == 'src':
@@ -640,7 +649,7 @@ def process_index_units(repo_info, tempdir, index_type, force=False):
     # Dictionary (dist to malformed packages list).
     # Malformed list - list of packages that can't be added to the index
     # (some problems encountered during processing).
-    malformed_lists = {}
+    malformed_lists = collections.defaultdict(list)
 
     for file_path in repo_info.storage.files('pool'):
         file_path = file_path.lstrip('/')
@@ -653,6 +662,10 @@ def process_index_units(repo_info, tempdir, index_type, force=False):
 
         if not components:
             print("Failed to parse file name: '%s'" % file_path)
+            if force:
+                dist = get_dist_from_path(file_path) or 'all'
+                malformed_lists[dist].append(file_path)
+                continue
             sys.exit(1)
 
         dist, _, _ = components
@@ -678,10 +691,7 @@ def process_index_units(repo_info, tempdir, index_type, force=False):
             except Exception as err:
                 print("Can't parse '%s':\n%s" % (file_path, str(err)))
                 if force:
-                    if dist in malformed_lists:
-                        malformed_lists[dist].append(file_path)
-                    else:
-                        malformed_lists[dist] = [file_path]
+                    malformed_lists[dist].append(file_path)
                     continue
                 else:
                     raise err
