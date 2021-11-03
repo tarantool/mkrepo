@@ -908,9 +908,9 @@ def generate_repomd(filelists_str, filelists_gz,
     primary_gz_sha256 = bytes_checksum(primary_gz, 'sha256')
     other_gz_sha256 = bytes_checksum(other_gz, 'sha256')
 
-    filelists_name = 'repodata/%s-filelists.xml.gz' % filelists_gz_sha256
-    primary_name = 'repodata/%s-primary.xml.gz' % primary_gz_sha256
-    other_name = 'repodata/%s-other.xml.gz' % other_gz_sha256
+    filelists_name = 'repodata/filelists.xml.gz'
+    primary_name = 'repodata/primary.xml.gz'
+    other_name = 'repodata/other.xml.gz'
 
     nowdt = datetime.datetime.now()
     nowtuple = nowdt.timetuple()
@@ -1109,9 +1109,9 @@ def update_repo(storage, sign, tempdir, force=False):
     primary_gz_sha256 = bytes_checksum(primary_gz, 'sha256')
     other_gz_sha256 = bytes_checksum(other_gz, 'sha256')
 
-    filelists_name = 'repodata/%s-filelists.xml.gz' % filelists_gz_sha256
-    primary_name = 'repodata/%s-primary.xml.gz' % primary_gz_sha256
-    other_name = 'repodata/%s-other.xml.gz' % other_gz_sha256
+    filelists_name = 'repodata/filelists.xml.gz'
+    primary_name = 'repodata/primary.xml.gz'
+    other_name = 'repodata/other.xml.gz'
 
     storage.write_file(filelists_name, filelists_gz)
     storage.write_file(primary_name, primary_gz)
