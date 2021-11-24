@@ -494,7 +494,7 @@ def process_index_file(repo_info, path, dist, component, arch, index_type):
     index = None
 
     if index_type == 'packages':
-        index = PackageIndex()
+        index = PackageIndex(arch=arch)
     elif index_type == 'sources':
         index = SourceIndex()
     else:
