@@ -1,24 +1,20 @@
 #!/usr/bin/env python
 
-import os
-import sys
-import re
-
-import subprocess
-import tempfile
-import shutil
-import storage
-import gzip
-from io import BytesIO
-import rpmfile
-import hashlib
-import json
-import itertools
-
 import datetime
+import gzip
+import hashlib
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
 import time
-
+from io import BytesIO
 from xml.sax.saxutils import escape
+
+import rpmfile
+import storage
 
 try:
     import xml.etree.cElementTree as ET

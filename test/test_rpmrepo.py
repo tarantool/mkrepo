@@ -1,6 +1,7 @@
 import unittest
 
 from dummy_storage import DummyStorage
+
 import rpmrepo
 
 

@@ -1,19 +1,20 @@
 #!/usr/bin/env python
 
-import collections
-import mimetypes
-import gzip
 import bz2
-import subprocess
-import re
-import os
-import tempfile
-from io import BytesIO
-import hashlib
-import time
+import collections
 import datetime
 import email
+import gzip
+import hashlib
+import mimetypes
+import os
+import re
+import subprocess
 import sys
+import tempfile
+import time
+from io import BytesIO
+
 
 def file_checksum(file_name, checksum_type):
     h = hashlib.new(checksum_type)

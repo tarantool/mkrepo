@@ -1,5 +1,5 @@
-from io import BytesIO
 import time
+from io import BytesIO
 
 from storage import Storage
 
