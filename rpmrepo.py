@@ -98,9 +98,9 @@ def sign_metadata(repomdfile):
     cmd = ["gpg", "--detach-sign", "--armor", "--digest-algo SHA256", repomdfile]
     try:
         subprocess.check_call(cmd)
-        print ("Successfully signed repository metadata file")
-    except subprocess.CalledProcessError as e:
-        print ("Unable to sign repository metadata '%s'" % (repomdfile))
+        print("Successfully signed repository metadata file")
+    except subprocess.CalledProcessError:
+        print("Unable to sign repository metadata '%s'" % repomdfile)
         exit(1)
 
 
@@ -435,8 +435,11 @@ def dump_primary(primary):
     res = ""
 
     res += '<?xml version="1.0" encoding="UTF-8"?>\n'
-    res += '<metadata xmlns="http://linux.duke.edu/metadata/common" xmlns:rpm="http://linux.duke.edu/metadata/rpm" packages="%d">\n' % len(
-        primary)
+    res += (
+        '<metadata xmlns="http://linux.duke.edu/metadata/common" '
+        'xmlns:rpm="http://linux.duke.edu/metadata/rpm" '
+        'packages="%d">\n' % len(primary)
+    )
 
     for package in primary.values():
         res += '<package type="rpm">\n'
@@ -893,13 +896,17 @@ def generate_repomd(filelists_str, filelists_gz,
     res = ""
 
     res += '<?xml version="1.0" encoding="UTF-8"?>\n'
-    res += '<repomd xmlns="http://linux.duke.edu/metadata/repo" xmlns:rpm="http://linux.duke.edu/metadata/rpm">\n'
+    res += (
+        '<repomd xmlns="http://linux.duke.edu/metadata/repo" '
+        'xmlns:rpm="http://linux.duke.edu/metadata/rpm">\n'
+    )
 
     res += '  <revision>%s</revision>\n' % revision
 
     res += '  <data type="filelists">\n'
     res += '    <checksum type="sha256">%s</checksum>\n' % filelists_gz_sha256
-    res += '    <open-checksum type="sha256">%s</open-checksum>\n' % filelists_str_sha256
+    res += '    <open-checksum type="sha256">%s</open-checksum>\n' % (
+        filelists_str_sha256)
     res += '    <location href="%s"/>\n' % filelists_name
     res += '    <timestamp>%s</timestamp>\n' % int(nowtimestamp)
     res += '    <size>%s</size>\n' % len(filelists_gz)
@@ -908,7 +915,8 @@ def generate_repomd(filelists_str, filelists_gz,
 
     res += '  <data type="primary">\n'
     res += '    <checksum type="sha256">%s</checksum>\n' % primary_gz_sha256
-    res += '    <open-checksum type="sha256">%s</open-checksum>\n' % primary_str_sha256
+    res += '    <open-checksum type="sha256">%s</open-checksum>\n' % (
+        primary_str_sha256)
     res += '    <location href="%s"/>\n' % primary_name
     res += '    <timestamp>%s</timestamp>\n' % int(nowtimestamp)
     res += '    <size>%s</size>\n' % len(primary_gz)

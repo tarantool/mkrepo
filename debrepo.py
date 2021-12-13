@@ -140,7 +140,7 @@ class IndexUnit(object):
                  other.fields['Version']))
 
     def __ne__(self, other):
-        return not(self == other)
+        return not (self == other)
 
 
 class Package(IndexUnit):
@@ -459,8 +459,11 @@ def split_control_file_path(path, ctrl_type):
             # The package management system will break the version number apart at the last hyphen
             # in the string (if there is one) to determine the upstream_version and debian_revision.
             # The absence of a debian_revision is equivalent to a debian_revision of 0.
-            expr2 = r'^(?P<package_name>[a-z0-9][-a-z0-9.+]+)_(?P<upstream_version>[a-zA-Z0-9.+:~]+)'\
-                    r'_(?P<arch>[^\.]+)\.deb$'
+            expr2 = (
+                r'^(?P<package_name>[a-z0-9][-a-z0-9.+]+)_'
+                r'(?P<upstream_version>[a-zA-Z0-9.+:~]+)_'
+                r'(?P<arch>[^\.]+)\.deb$'
+            )
             match_package = re.match(expr2, os.path.basename(path))
 
         if not match_package:
@@ -817,7 +820,7 @@ def update_release_files(repo_info, sign):
 
         release_str = release.dump_string()
         repo_info.storage.write_file('dists/%s/Release' % dist,
-                           release_str.encode('utf-8'))
+                                     release_str.encode('utf-8'))
 
         if sign:
             sign_release_file(repo_info.storage, release_str, dist)
