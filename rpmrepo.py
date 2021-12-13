@@ -94,7 +94,10 @@ def gpg_sign_string(data, keyname=None, inline=False):
 
 
 def sign_metadata(repomdfile):
-    """Requires a proper ~/.rpmmacros file. See <http://fedoranews.org/tchung/gpg/>"""
+    """Requires a proper ~/.rpmmacros file.
+
+    See <http://fedoranews.org/tchung/gpg/>
+    """
     cmd = ["gpg", "--detach-sign", "--armor", "--digest-algo SHA256", repomdfile]
     try:
         subprocess.check_call(cmd)
@@ -452,8 +455,8 @@ def dump_primary(primary):
                                for c in ['epoch', 'ver', 'rel'] if ver[c]])
         res += '%s/>\n' % components
 
-        res += '  <checksum type="sha256" pkgid="YES">%s</checksum>\n' % \
-            package['checksum']
+        res += '  <checksum type="sha256" pkgid="YES">%s</checksum>\n' % (
+            package['checksum'])
 
         res += '  <summary>%s</summary>\n' % escape(package['summary'] or '')
         res += '  <description>%s</description>\n' % escape(
@@ -545,7 +548,7 @@ def parse_ver_str(ver_str):
     epoch = match.group(1)[:-1] if match.group(1) else "0"
     ver = match.group(2)
     rel = match.group(3)[1:] if match.group(3) else None
-    return (epoch, ver, rel)
+    return epoch, ver, rel
 
 
 def header_to_other(header, sha256):

@@ -521,7 +521,7 @@ def process_index_file(repo_info, path, dist, component, arch, index_type):
     elif index_type == 'sources':
         index = SourceIndex()
     else:
-        raise(RuntimeError('Unknown index type: ' + index_type))
+        raise RuntimeError('Unknown index type: ' + index_type)
 
     index.parse_string(repo_info.storage.read_file(path).decode('utf-8'))
     if index_type == 'packages':
@@ -636,7 +636,7 @@ def process_index_units(repo_info, tempdir, index_type, force=False):
         expr = r'^.*\.dsc$'
         tmp_filename = 'source.dsc'
     else:
-        raise(RuntimeError('Unknown index type: ' + index_type))
+        raise RuntimeError('Unknown index type: ' + index_type)
 
     mtimes = get_mtimes(index_list)
     tmpdir = tempfile.mkdtemp('', 'tmp', tempdir)
@@ -730,7 +730,7 @@ def update_index_files(repo_info, index_type):
         index_filename = 'Sources'
         index_list = repo_info.source_index_list
     else:
-        raise(RuntimeError('Unknown index type: ' + index_type))
+        raise RuntimeError('Unknown index type: ' + index_type)
 
     for key in index_list:
         dist, component, arch = key
@@ -800,8 +800,7 @@ def update_release_files(repo_info, sign):
         release['Date'] = creation_date
         release['Architectures'] = ' '.join(repo_info.architectures[dist])
         release['Components'] = ' '.join(repo_info.components[dist])
-        release['Description'] = os.getenv('MKREPO_DEB_DESCRIPTION')\
-            or 'Repo generator'
+        release['Description'] = os.getenv('MKREPO_DEB_DESCRIPTION') or 'Repo generator'
 
         checksum_lines = collections.defaultdict(list)
         checksum_names = {'md5': 'MD5Sum', 'sha1': 'SHA1', 'sha256': 'SHA256'}
