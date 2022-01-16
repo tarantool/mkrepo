@@ -1,12 +1,13 @@
 #!/usr/bin/env python
 
-import os
 import errno
+import os
 import shutil
-import urllib
-import boto3
-from io import BytesIO
 import time
+import urllib
+from io import BytesIO
+
+import boto3
 
 
 class Storage:

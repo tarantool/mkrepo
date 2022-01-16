@@ -1,8 +1,7 @@
-import os
-import sys
 import unittest
 
 from dummy_storage import DummyStorage
+
 
 class TestDummyStorage(unittest.TestCase):
     def test_base_functionality(self):

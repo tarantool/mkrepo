@@ -1,24 +1,20 @@
 #!/usr/bin/env python
 
-import os
-import sys
-import re
-
-import subprocess
-import tempfile
-import shutil
-import storage
-import gzip
-from io import BytesIO
-import rpmfile
-import hashlib
-import json
-import itertools
-
 import datetime
+import gzip
+import hashlib
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
 import time
-
+from io import BytesIO
 from xml.sax.saxutils import escape
+
+import rpmfile
+import storage
 
 try:
     import xml.etree.cElementTree as ET
@@ -98,13 +94,16 @@ def gpg_sign_string(data, keyname=None, inline=False):
 
 
 def sign_metadata(repomdfile):
-    """Requires a proper ~/.rpmmacros file. See <http://fedoranews.org/tchung/gpg/>"""
+    """Requires a proper ~/.rpmmacros file.
+
+    See <http://fedoranews.org/tchung/gpg/>
+    """
     cmd = ["gpg", "--detach-sign", "--armor", "--digest-algo SHA256", repomdfile]
     try:
         subprocess.check_call(cmd)
-        print ("Successfully signed repository metadata file")
-    except subprocess.CalledProcessError as e:
-        print ("Unable to sign repository metadata '%s'" % (repomdfile))
+        print("Successfully signed repository metadata file")
+    except subprocess.CalledProcessError:
+        print("Unable to sign repository metadata '%s'" % repomdfile)
         exit(1)
 
 
@@ -439,8 +438,11 @@ def dump_primary(primary):
     res = ""
 
     res += '<?xml version="1.0" encoding="UTF-8"?>\n'
-    res += '<metadata xmlns="http://linux.duke.edu/metadata/common" xmlns:rpm="http://linux.duke.edu/metadata/rpm" packages="%d">\n' % len(
-        primary)
+    res += (
+        '<metadata xmlns="http://linux.duke.edu/metadata/common" '
+        'xmlns:rpm="http://linux.duke.edu/metadata/rpm" '
+        'packages="%d">\n' % len(primary)
+    )
 
     for package in primary.values():
         res += '<package type="rpm">\n'
@@ -453,8 +455,8 @@ def dump_primary(primary):
                                for c in ['epoch', 'ver', 'rel'] if ver[c]])
         res += '%s/>\n' % components
 
-        res += '  <checksum type="sha256" pkgid="YES">%s</checksum>\n' % \
-            package['checksum']
+        res += '  <checksum type="sha256" pkgid="YES">%s</checksum>\n' % (
+            package['checksum'])
 
         res += '  <summary>%s</summary>\n' % escape(package['summary'] or '')
         res += '  <description>%s</description>\n' % escape(
@@ -546,7 +548,7 @@ def parse_ver_str(ver_str):
     epoch = match.group(1)[:-1] if match.group(1) else "0"
     ver = match.group(2)
     rel = match.group(3)[1:] if match.group(3) else None
-    return (epoch, ver, rel)
+    return epoch, ver, rel
 
 
 def header_to_other(header, sha256):
@@ -897,13 +899,17 @@ def generate_repomd(filelists_str, filelists_gz,
     res = ""
 
     res += '<?xml version="1.0" encoding="UTF-8"?>\n'
-    res += '<repomd xmlns="http://linux.duke.edu/metadata/repo" xmlns:rpm="http://linux.duke.edu/metadata/rpm">\n'
+    res += (
+        '<repomd xmlns="http://linux.duke.edu/metadata/repo" '
+        'xmlns:rpm="http://linux.duke.edu/metadata/rpm">\n'
+    )
 
     res += '  <revision>%s</revision>\n' % revision
 
     res += '  <data type="filelists">\n'
     res += '    <checksum type="sha256">%s</checksum>\n' % filelists_gz_sha256
-    res += '    <open-checksum type="sha256">%s</open-checksum>\n' % filelists_str_sha256
+    res += '    <open-checksum type="sha256">%s</open-checksum>\n' % (
+        filelists_str_sha256)
     res += '    <location href="%s"/>\n' % filelists_name
     res += '    <timestamp>%s</timestamp>\n' % int(nowtimestamp)
     res += '    <size>%s</size>\n' % len(filelists_gz)
@@ -912,7 +918,8 @@ def generate_repomd(filelists_str, filelists_gz,
 
     res += '  <data type="primary">\n'
     res += '    <checksum type="sha256">%s</checksum>\n' % primary_gz_sha256
-    res += '    <open-checksum type="sha256">%s</open-checksum>\n' % primary_str_sha256
+    res += '    <open-checksum type="sha256">%s</open-checksum>\n' % (
+        primary_str_sha256)
     res += '    <location href="%s"/>\n' % primary_name
     res += '    <timestamp>%s</timestamp>\n' % int(nowtimestamp)
     res += '    <size>%s</size>\n' % len(primary_gz)

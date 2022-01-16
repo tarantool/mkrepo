@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 
 import os
-import sys
 import unittest
 
 import debrepo
+
 
 class TestVersionParsing(unittest.TestCase):
     def test_versions(self):

@@ -1,10 +1,11 @@
 #!/usr/bin/env python
 
 import argparse
-import storage
+import os
+
 import debrepo
 import rpmrepo
-import os
+import storage
 
 
 def is_deb_repo(stor):
