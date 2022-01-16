@@ -562,7 +562,7 @@ def header_to_other(header, sha256):
     """
     pkgid = sha256
     name = get_with_decode(header, 'NAME', None)
-    arch = get_with_decode(header, 'ARCH', None)
+    arch = get_arch_from_header(header)
     epoch = header.get('EPOCH', '0')
     rel = get_with_decode(header, 'RELEASE', None)
     ver = get_with_decode(header, 'VERSION', None)
@@ -653,10 +653,30 @@ def get_with_decode(dictionary, key, default='', encoding='utf-8'):
     return res
 
 
+def get_arch_from_header(header):
+    """Defines the architecture of the package according to
+    the data from the header.
+
+    Keyword arguments:
+    header - parsed rpm package header (dict)
+
+    Return the architecture the package is for (string)
+    """
+
+    # The architecture definition condition is based on
+    # https://github.com/rpm-software-management/yum/blob/4ed25525ee4781907bd204018c27f44948ed83fe/yum/packages.py#L2222
+    sourcepackage = header.get('SOURCEPACKAGE', None)
+    sourcerpm = get_with_decode(header, 'SOURCERPM', '')
+    if sourcepackage == 1 or not sourcerpm:
+        return 'src'
+    else:
+        return get_with_decode(header, 'ARCH', None)
+
+
 def header_to_filelists(header, sha256):
     pkgid = sha256
     name = get_with_decode(header, 'NAME', None)
-    arch = get_with_decode(header, 'ARCH', None)
+    arch = get_arch_from_header(header)
     epoch = header.get('EPOCH', '0')
     rel = get_with_decode(header, 'RELEASE', None)
     ver = get_with_decode(header, 'VERSION', None)
@@ -712,7 +732,7 @@ def header_to_primary(
         header_end,
         size):
     name = get_with_decode(header, 'NAME', None)
-    arch = get_with_decode(header, 'ARCH')
+    arch = get_arch_from_header(header)
     summary = get_with_decode(header, 'SUMMARY')
     description = get_with_decode(header, 'DESCRIPTION')
     packager = get_with_decode(header, 'PACKAGER', None)

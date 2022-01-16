@@ -149,6 +149,7 @@ class TestOtherGeneration(unittest.TestCase):
         sha_256_key = '9a791d16574dc3408f495eb383b6c2669b34fc4545b3c43c8c791fbbe10619d2'
         header = {
             'NAME': b'Test Package Header Other 1',
+            'SOURCERPM':b'tpho-0.0.1-1.fc34.src.rpm',
             'ARCH': b'aarch64',
             'EPOCH': 1,
             'RELEASE': b'10.el8_4',
