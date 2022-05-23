@@ -152,12 +152,17 @@ class Package(IndexUnit):
         self.arch = arch
 
     def parse_deb(self, debfile):
-        if subprocess.call('ar t ' + debfile + ' | grep control.tar.gz', shell=True) == 0:
+        if subprocess.call('ar t ' + debfile + ' | grep -q control.tar.gz', shell=True) == 0:
             cmd = 'ar -p ' + debfile + ' control.tar.gz |' + \
                   'tar -xzf - --to-stdout ./control'
-        else:
+        elif subprocess.call('ar t ' + debfile + ' | grep -q control.tar.xz', shell=True) == 0:
             cmd = 'ar -p ' + debfile + ' control.tar.xz |' + \
                   'tar -xJf - --to-stdout ./control'
+        elif subprocess.call('ar t ' + debfile + ' | grep -q control.tar.zst', shell=True) == 0:
+            cmd = 'ar -p ' + debfile + ' control.tar.zst |' + \
+                  'tar --use-compress-program=unzstd -xf - --to-stdout ./control'
+        else:
+            raise FileNotFoundError('Cannot find control TAR archive')
 
         control = subprocess.check_output(cmd, shell=True)
         self.parse_string(control.decode('utf-8').strip())
