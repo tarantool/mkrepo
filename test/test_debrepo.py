@@ -54,7 +54,7 @@ class TestVersionParsing(unittest.TestCase):
         ]
 
         for test_file_name in test_file_names:
-            test_path = os.path.join(TEST_DIR, test_file_name)
+            test_path = os.path.join(TEST_DIR, f"resources/{test_file_name}")
             with open(test_path, 'r') as test_file:
                 for package_name in test_file:
                     self.assertIsNotNone(debrepo.split_control_file_path(package_name, 'binary'),
