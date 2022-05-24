@@ -233,6 +233,8 @@ class Source(IndexUnit):
                 # Multiline field case
                 # (https://www.debian.org/doc/debian-policy/ch-controlfields.html#syntax-of-control-files).
                 value = '%s\n%s' % (value, line)
+            elif line.startswith('Hash:') or ':' not in line:
+                continue
             else:
                 if key:
                     # Save the key: value pair, read in the previous iteration.
