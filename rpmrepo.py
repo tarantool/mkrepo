@@ -492,7 +492,23 @@ def dump_primary(primary):
 
         res += '    <rpm:provides>\n'
 
-        for key in sorted(fmt['provides']):
+        def sort_key(item):
+            # Examples of an `item`:
+            #   ('tarantool-lrexlib-pcre', '0', None, '2.9.0.5')
+            #   ('tarantool-lrexlib-pcre', '0', '1.el7.centos', '2.9.0.5')
+            #
+            # If there is a `None` value among `str` values, we need to convert it to an empty
+            # string to avoid the following error:
+            #   TypeError: '<' not supported between instances of 'str' and 'NoneType'
+            if None in item[1:] and any(item[1:]):
+                item_custom = list(item)
+                for i, v in enumerate(item_custom[:]):
+                    if v is None:
+                        item_custom[i] = ""
+                return tuple(item_custom)
+            return item
+
+        for key in sorted(fmt['provides'], key=sort_key):
             provides = fmt['provides'][key]
             entry = ['name="%s"' % provides['name']]
             for component in ['flags', 'epoch', 'ver', 'rel']:
@@ -505,7 +521,7 @@ def dump_primary(primary):
 
         res += '    <rpm:requires>\n'
 
-        for key in sorted(fmt['requires']):
+        for key in sorted(fmt['requires'], key=sort_key):
             requires = fmt['requires'][key]
             entry = ['name="%s"' % requires['name']]
             for component in ['flags', 'epoch', 'ver', 'rel', 'pre']:
@@ -518,7 +534,7 @@ def dump_primary(primary):
 
         res += '    <rpm:obsoletes>\n'
 
-        for key in sorted(fmt['obsoletes']):
+        for key in sorted(fmt['obsoletes'], key=sort_key):
             obsoletes = fmt['obsoletes'][key]
             entry = ['name="%s"' % obsoletes['name']]
             for component in ['flags', 'epoch', 'ver', 'rel']:
