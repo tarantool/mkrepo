@@ -500,7 +500,8 @@ def dump_primary(primary):
             # If there is a `None` value among `str` values, we need to convert it to an empty
             # string to avoid the following error:
             #   TypeError: '<' not supported between instances of 'str' and 'NoneType'
-            if None in item[1:] and any(item[1:]):
+            # Note, there can be cases when all item[1:] values are None.
+            if None in item[1:]:
                 item_custom = list(item)
                 for i, v in enumerate(item_custom[:]):
                     if v is None:
