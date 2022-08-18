@@ -478,7 +478,7 @@ def dump_primary(primary):
 
         res += '  <format>\n'
 
-        res += '    <rpm:license>%s</rpm:license>\n' % fmt['license']
+        res += '    <rpm:license>%s</rpm:license>\n' % escape(fmt['license'])
 
         if fmt['vendor']:
             res += '    <rpm:vendor>%s</rpm:vendor>\n' % escape(fmt['vendor'])
