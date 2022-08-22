@@ -516,7 +516,7 @@ def dump_primary(primary):
                 if provides[component] is not None:
                     entry.append('%s="%s"' % (component, provides[component]))
 
-            res += '      <rpm:entry ' + ' '.join(entry) + '/>\n'
+            res += '      <rpm:entry ' + escape(' '.join(entry)) + '/>\n'
 
         res += '    </rpm:provides>\n'
 
@@ -529,7 +529,7 @@ def dump_primary(primary):
                 if requires[component] is not None:
                     entry.append('%s="%s"' % (component, requires[component]))
 
-            res += '      <rpm:entry ' + ' '.join(entry) + '/>\n'
+            res += '      <rpm:entry ' + escape(' '.join(entry)) + '/>\n'
 
         res += '    </rpm:requires>\n'
 
@@ -542,7 +542,7 @@ def dump_primary(primary):
                 if obsoletes[component] is not None:
                     entry.append('%s="%s"' % (component, obsoletes[component]))
 
-            res += '      <rpm:entry ' + ' '.join(entry) + '/>\n'
+            res += '      <rpm:entry ' + escape(' '.join(entry)) + '/>\n'
 
         res += '    </rpm:obsoletes>\n'
 

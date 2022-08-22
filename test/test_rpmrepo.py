@@ -208,3 +208,165 @@ rel="1.el7.centos"/>
 </metadata>
 """
         self.assertEqual(rpmrepo.dump_primary(primary), primary_str)
+
+    def test_escape_xml_special_chars_in_primary_dump(self):
+        primary = {
+            ('python3-gevent', '0', '1.el7', '21.1.2'): {
+                'name': 'python3-gevent',
+                'arch': 'x86_64',
+                'version': {'ver': '21.1.2', 'rel': '1.el7', 'epoch': '0'},
+                'checksum': '3dbbd8920df527ebb4176d531e5ec1da43cd44d1359dd69cd102a0e75131f878',
+                'summary': 'foo & bar',  # should be escaped
+                'description': '<foo> and <bar>',  # should be escaped
+                'packager': '<bar>&<foo>',  # should be escaped
+                'url': 'http://www.gevent.org/',
+                'file_time': '1661151589',
+                'build_time': '1661158857',
+                'package_size': '1797532',
+                'installed_size': '7755119',
+                'archive_size': '7920508',
+                'location': 'Packages/python3-gevent-21.1.2-1.el7.x86_64.rpm',
+                'format': {
+                    'license': 'MIT & MIT',  # should be escaped
+                    'vendor': 'Foo&Bar',  # should be escaped
+                    'group': None,
+                    'buildhost': 'd5420ea808fe',
+                    'sourcerpm': 'python-gevent-21.1.2-1.el7.src.rpm',
+                    'header_start': '4424',
+                    'header_end': '147768',
+                    'provides': {
+                        ('python3-gevent', '0', '1.el7', '21.1.2'): {
+                            'name': 'python3-gevent', 'epoch': '0', 'rel': '1.el7', 'ver': '21.1.2',
+                            'flags': 'EQ'
+                        },
+                        ('python3-gevent(x86-64)', '0', '1.el7', '21.1.2'): {
+                            'name': 'python3-gevent(x86-64)', 'epoch': '0', 'rel': '1.el7',
+                            'ver': '21.1.2', 'flags': 'EQ'
+                        },
+                        ('python3.8dist(gevent)', '0', None, '21.1.2'): {
+                            'name': 'python3.8dist(gevent)', 'epoch': '0', 'rel': None,
+                            'ver': '21.1.2', 'flags': 'EQ'
+                        },
+                        ('python3dist(gevent)', '0', None, '21.1.2'): {
+                            'name': 'python3dist(gevent)', 'epoch': '0', 'rel': None,
+                            'ver': '21.1.2', 'flags': 'EQ'
+                        }
+                    },
+                    'requires': {
+                        # The '>' and '<' should be escaped.
+                        ('(python3.8dist(greenlet) >= 0.4.17 with python3.8dist(greenlet) < 2)',
+                         None, None, None): {
+                            'name': '(python3.8dist(greenlet) >= 0.4.17 '
+                                    'with python3.8dist(greenlet) < 2)',
+                            'epoch': None, 'rel': None, 'ver': None, 'flags': None, 'pre': None
+                        },
+                        ('libc.so.6()(64bit)', None, None, None): {
+                            'name': 'libc.so.6()(64bit)', 'epoch': None, 'rel': None, 'ver': None,
+                            'flags': None, 'pre': None
+                        },
+                        ('libc.so.6(GLIBC_2.2.5)(64bit)', None, None, None): {
+                            'name': 'libc.so.6(GLIBC_2.2.5)(64bit)', 'epoch': None, 'rel': None,
+                            'ver': None, 'flags': None, 'pre': None
+                        },
+                        ('libc.so.6(GLIBC_2.4)(64bit)', None, None, None): {
+                            'name': 'libc.so.6(GLIBC_2.4)(64bit)', 'epoch': None, 'rel': None,
+                            'ver': None, 'flags': None, 'pre': None
+                        },
+                        ('libcares.so.2()(64bit)', None, None, None): {
+                            'name': 'libcares.so.2()(64bit)', 'epoch': None, 'rel': None,
+                            'ver': None, 'flags': None, 'pre': None
+                        },
+                        ('libev.so.4()(64bit)', None, None, None): {
+                            'name': 'libev.so.4()(64bit)', 'epoch': None, 'rel': None, 'ver': None,
+                            'flags': None, 'pre': None
+                        },
+                        ('libpthread.so.0()(64bit)', None, None, None): {
+                            'name': 'libpthread.so.0()(64bit)', 'epoch': None, 'rel': None,
+                            'ver': None, 'flags': None, 'pre': None
+                        },
+                        ('libpthread.so.0(GLIBC_2.2.5)(64bit)', None, None, None): {
+                            'name': 'libpthread.so.0(GLIBC_2.2.5)(64bit)', 'epoch': None,
+                            'rel': None, 'ver': None, 'flags': None, 'pre': None
+                        },
+                        ('python(abi)', '0', None, '3.8'): {
+                            'name': 'python(abi)', 'epoch': '0', 'rel': None, 'ver': '3.8',
+                            'flags': 'EQ', 'pre': None
+                        },
+                        ('python3-greenlet', '0', None, '0.4.17'): {
+                            'name': 'python3-greenlet', 'epoch': '0', 'rel': None, 'ver': '0.4.17',
+                            'flags': 'GT', 'pre': None
+                        },
+                        ('python3.8dist(setuptools)', None, None, None): {
+                            'name': 'python3.8dist(setuptools)', 'epoch': None, 'rel': None,
+                            'ver': None, 'flags': None, 'pre': None
+                        },
+                        ('python3.8dist(zope.event)', None, None, None): {
+                            'name': 'python3.8dist(zope.event)', 'epoch': None, 'rel': None,
+                            'ver': None, 'flags': None, 'pre': None
+                        },
+                        ('python3.8dist(zope.interface)', None, None, None): {
+                            'name': 'python3.8dist(zope.interface)', 'epoch': None, 'rel': None,
+                            'ver': None, 'flags': None, 'pre': None
+                        },
+                        ('rtld(GNU_HASH)', None, None, None): {
+                            'name': 'rtld(GNU_HASH)', 'epoch': None, 'rel': None, 'ver': None,
+                            'flags': None, 'pre': None
+                        }
+                    },
+                    'obsoletes': {},
+                    'files': []
+                }
+            }
+        }
+        primary_str = """<?xml version="1.0" encoding="UTF-8"?>
+<metadata xmlns="http://linux.duke.edu/metadata/common" \
+xmlns:rpm="http://linux.duke.edu/metadata/rpm" packages="1">
+<package type="rpm">
+  <name>python3-gevent</name>
+  <arch>x86_64</arch>
+  <version epoch="0" ver="21.1.2" rel="1.el7"/>
+  <checksum type="sha256" \
+pkgid="YES">3dbbd8920df527ebb4176d531e5ec1da43cd44d1359dd69cd102a0e75131f878</checksum>
+  <summary>foo &amp; bar</summary>
+  <description>&lt;foo&gt; and &lt;bar&gt;</description>
+  <packager>&lt;bar&gt;&amp;&lt;foo&gt;</packager>
+  <url>http://www.gevent.org/</url>
+  <time file="1661151589" build="1661158857"/>
+  <size package="1797532" installed="7755119" archive="7920508"/>
+  <location href="Packages/python3-gevent-21.1.2-1.el7.x86_64.rpm"/>
+  <format>
+    <rpm:license>MIT &amp; MIT</rpm:license>
+    <rpm:vendor>Foo&amp;Bar</rpm:vendor>
+    <rpm:group></rpm:group>
+    <rpm:buildhost>d5420ea808fe</rpm:buildhost>
+    <rpm:sourcerpm>python-gevent-21.1.2-1.el7.src.rpm</rpm:sourcerpm>
+    <rpm:header-range start="4424" end="147768"/>
+    <rpm:provides>
+      <rpm:entry name="python3-gevent" flags="EQ" epoch="0" ver="21.1.2" rel="1.el7"/>
+      <rpm:entry name="python3-gevent(x86-64)" flags="EQ" epoch="0" ver="21.1.2" rel="1.el7"/>
+      <rpm:entry name="python3.8dist(gevent)" flags="EQ" epoch="0" ver="21.1.2"/>
+      <rpm:entry name="python3dist(gevent)" flags="EQ" epoch="0" ver="21.1.2"/>
+    </rpm:provides>
+    <rpm:requires>
+      <rpm:entry name="(python3.8dist(greenlet) &gt;= 0.4.17 with python3.8dist(greenlet) &lt; 2)"/>
+      <rpm:entry name="libc.so.6()(64bit)"/>
+      <rpm:entry name="libc.so.6(GLIBC_2.2.5)(64bit)"/>
+      <rpm:entry name="libc.so.6(GLIBC_2.4)(64bit)"/>
+      <rpm:entry name="libcares.so.2()(64bit)"/>
+      <rpm:entry name="libev.so.4()(64bit)"/>
+      <rpm:entry name="libpthread.so.0()(64bit)"/>
+      <rpm:entry name="libpthread.so.0(GLIBC_2.2.5)(64bit)"/>
+      <rpm:entry name="python(abi)" flags="EQ" epoch="0" ver="3.8"/>
+      <rpm:entry name="python3-greenlet" flags="GT" epoch="0" ver="0.4.17"/>
+      <rpm:entry name="python3.8dist(setuptools)"/>
+      <rpm:entry name="python3.8dist(zope.event)"/>
+      <rpm:entry name="python3.8dist(zope.interface)"/>
+      <rpm:entry name="rtld(GNU_HASH)"/>
+    </rpm:requires>
+    <rpm:obsoletes>
+    </rpm:obsoletes>
+  </format>
+</package>
+</metadata>
+"""
+        self.assertEqual(rpmrepo.dump_primary(primary), primary_str)
