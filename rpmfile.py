@@ -400,7 +400,7 @@ class RpmInfo(object):
                     value.append(struct.unpack('>q', f.read(8))[0])
                 if len(value) == 1:
                     value = value[0]
-            elif type == 6:
+            elif type == 6 or type == 9:
                 char = None
                 string = b''
                 while True:
