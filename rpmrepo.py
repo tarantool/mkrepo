@@ -750,8 +750,21 @@ def header_to_primary(
         size):
     name = get_with_decode(header, 'NAME', None)
     arch = get_arch_from_header(header)
-    summary = get_with_decode(header, 'SUMMARY')
-    description = get_with_decode(header, 'DESCRIPTION')
+
+    try:
+        summary = get_with_decode(header, 'SUMMARY')
+    except UnicodeDecodeError:
+        summary = get_with_decode(
+            header, 'SUMMARY', encoding='latin-1'
+        ).encode('utf-8').decode('utf-8')
+
+    try:
+        description = get_with_decode(header, 'DESCRIPTION')
+    except UnicodeDecodeError:
+        description = get_with_decode(
+            header, 'DESCRIPTION', encoding='latin-1'
+        ).encode('utf-8').decode('utf-8')
+
     packager = get_with_decode(header, 'PACKAGER', None)
     build_time = header.get('BUILDTIME', '')
     url = get_with_decode(header, 'URL')
