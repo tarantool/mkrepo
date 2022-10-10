@@ -1,11 +1,12 @@
 #!/usr/bin/env python
-
+import ctypes
 import datetime
 import gzip
 import hashlib
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -546,12 +547,37 @@ def dump_primary(primary):
 
         res += '    </rpm:obsoletes>\n'
 
+        primary_dirs_files = []
+        for file in fmt['files']:
+            if is_primary_file(file['name']):
+                primary_dirs_files.append(file)
+
+        if primary_dirs_files:
+            for primary_dir_file in primary_dirs_files:
+                primary_dir_file_t = primary_dir_file["type"]
+                primary_dir_file_n = primary_dir_file["name"]
+                if primary_dir_file_t == 'dir':
+                    res += f'  <file type="{primary_dir_file_t}">{primary_dir_file_n}</file>\n'
+                elif primary_dir_file_t == 'file':
+                    res += f'  <file>{primary_dir_file_n}</file>\n'
+
         res += '  </format>\n'
         res += '</package>\n'
 
     res += "</metadata>\n"
 
     return res
+
+
+def is_primary_file(file_name: str) -> bool:
+    """Check if the filename should be listed in primary.xml."""
+    if file_name.startswith('/etc/'):
+        return True
+    elif file_name == '/usr/lib/sendmail':
+        return True
+    elif 'bin/' in file_name:
+        return True
+    return False
 
 
 def parse_ver_str(ver_str):
@@ -864,15 +890,21 @@ def header_to_primary(
     dirindexes = header.get('DIRINDEXES', [])
     if not isinstance(dirindexes, list):
         dirindexes = [dirindexes]
+    filemodes = header.get('FILEMODES', [])
+    if not isinstance(filemodes, list):
+        filemodes = [filemodes]
+
+    # represent integer as a C uint16 type value
+    filemodes = [ctypes.c_uint16(filemode).value for filemode in filemodes]
 
     files = []
-    for entry in zip(basenames, dirindexes):
+    for entry in zip(basenames, dirindexes, filemodes):
         filename = entry[0].decode('utf-8')
         dirname = dirnames[entry[1]].decode('utf-8')
-        files.append({'name': dirname + filename, 'type': 'file'})
-
-    for dirname in dirnames:
-        files.append({'name': dirname.decode('utf-8'), 'type': 'dir'})
+        if stat.S_ISDIR(entry[2]):
+            files.append({'name': dirname + filename, 'type': 'dir'})
+        elif stat.S_ISREG(entry[2]) or stat.S_ISLNK(entry[2]):
+            files.append({'name': dirname + filename, 'type': 'file'})
 
     # result package
     format_dict = {'license': format_license,
