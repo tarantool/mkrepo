@@ -14,7 +14,7 @@ RPMSENSE_ANY = 0
 RPMSENSE_LESS = 1 << 1
 RPMSENSE_GREATER = 1 << 2
 RPMSENSE_EQUAL = 1 << 3
-RPMSENSE_SENSEMASK = 0x0e
+RPMSENSE_SENSEMASK = 0x0f
 RPMSENSE_NOTEQUAL = RPMSENSE_EQUAL ^ RPMSENSE_SENSEMASK
 
 RPMSENSE_PROVIDES = (1 << 4)
@@ -44,24 +44,21 @@ RPMSENSE_CONFIG = (1 << 28)
 
 
 def flags_to_str(flags):
-    flags = flags & 0x0e
+    flags = flags & RPMSENSE_SENSEMASK
 
-    if flags == RPMSENSE_NOTEQUAL:
-        return "NE"
-    elif flags == RPMSENSE_EQUAL:
-        return "EQ"
-    elif flags & RPMSENSE_LESS:
-        return "LT"
-    elif flags & RPMSENSE_GREATER:
-        return "GT"
-    elif flags & (RPMSENSE_LESS | RPMSENSE_EQUAL):
-        return "LE"
-    elif flags & (RPMSENSE_GREATER | RPMSENSE_EQUAL):
-        return "GE"
-    elif flags == 0:
+    if flags == 0:
         return None
-    else:
-        raise RuntimeError("Unknown flags: %d" % flags)
+    elif flags == 2:
+        return "LT"
+    elif flags == 4:
+        return "GT"
+    elif flags == 8:
+        return "EQ"
+    elif flags == 10:
+        return "LE"
+    elif flags == 12:
+        return "GE"
+    return None
 
 
 SIGNATURE_TAG_TABLE = {
