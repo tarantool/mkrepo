@@ -339,6 +339,30 @@ def parse_primary(data):
                                     'ver': obsoletes_ver,
                                     'flags': obsoletes_flags}
 
+        # conflicts
+
+        conflicts = fmt.find('rpm:conflicts', namespaces)
+        if conflicts is None:
+            conflicts = []
+
+        conflicts_dict = {}
+
+        for entry in conflicts:
+            conflicts_name = entry.attrib['name']
+            conflicts_epoch = entry.attrib.get('epoch', None)
+            conflicts_rel = entry.attrib.get('rel', None)
+            conflicts_ver = entry.attrib.get('ver', None)
+            conflicts_flags = entry.attrib.get('flags', None)
+
+            nerv = (conflicts_name, conflicts_epoch,
+                    conflicts_rel, conflicts_ver)
+
+            conflicts_dict[nerv] = {'name': conflicts_name,
+                                    'epoch': conflicts_epoch,
+                                    'rel': conflicts_rel,
+                                    'ver': conflicts_ver,
+                                    'flags': conflicts_flags}
+
         # files
         files = []
         for node in fmt.findall('primary:file', namespaces):
@@ -360,6 +384,7 @@ def parse_primary(data):
                        'provides': provides_dict,
                        'requires': requires_dict,
                        'obsoletes': obsoletes_dict,
+                       'conflicts': conflicts_dict,
                        'files': files}
 
         package = {
@@ -546,6 +571,21 @@ def dump_primary(primary):
             res += '      <rpm:entry ' + escape(' '.join(entry)) + '/>\n'
 
         res += '    </rpm:obsoletes>\n'
+
+        if fmt['conflicts']:
+
+            res += '    <rpm:conflicts>\n'
+
+            for key in sorted(fmt['conflicts'], key=sort_key):
+                conflicts = fmt['conflicts'][key]
+                entry = ['name="%s"' % conflicts['name']]
+                for component in ['flags', 'epoch', 'ver', 'rel']:
+                    if conflicts[component] is not None:
+                        entry.append('%s="%s"' % (component, conflicts[component]))
+
+                res += '      <rpm:entry ' + escape(' '.join(entry)) + '/>\n'
+
+            res += '    </rpm:conflicts>\n'
 
         primary_dirs_files = []
         for file in fmt['files']:
@@ -893,6 +933,30 @@ def header_to_primary(
                                 'ver': obsoletes_ver,
                                 'flags': obsoletes_flags}
 
+    # conflicts
+
+    conflicts_dict = {}
+    conflictname = header.get('CONFLICTNAME', [])
+    conflictversion = header.get('CONFLICTVERSION', [])
+    conflictflags = header.get('CONFLICTFLAGS', [])
+
+    if not isinstance(conflictflags, list):
+        conflictflags = [conflictflags]
+
+    for entry in zip(conflictname, conflictversion, conflictflags):
+        conflicts_name = entry[0].decode('utf-8')
+        conflicts_epoch, conflicts_ver, conflicts_rel = \
+            parse_ver_str(entry[1].decode('utf-8'))
+        conflicts_flags = rpmfile.flags_to_str(entry[2])
+
+        nerv = (conflicts_name, conflicts_epoch, conflicts_rel, conflicts_ver)
+
+        conflicts_dict[nerv] = {'name': conflicts_name,
+                                'epoch': conflicts_epoch,
+                                'rel': conflicts_rel,
+                                'ver': conflicts_ver,
+                                'flags': conflicts_flags}
+
     # files
     dirnames = header.get('DIRNAMES', [])
     if not isinstance(dirnames, list):
@@ -930,6 +994,7 @@ def header_to_primary(
                    'provides': provides_dict,
                    'requires': requires_dict,
                    'obsoletes': obsoletes_dict,
+                   'conflicts': conflicts_dict,
                    'files': files}
 
     package = {
