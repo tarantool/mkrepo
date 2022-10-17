@@ -153,6 +153,7 @@ class TestRPMRepo(unittest.TestCase):
                             'rel': None, 'ver': '1.9.0.0', 'flags': 'GT', 'pre': None}
                     },
                     'obsoletes': {},
+                    'conflicts': {},
                     'files': [
                         {'name': '/usr/lib64/tarantool/rex_pcre.so', 'type': 'file'},
                         {'name': '/usr/lib64/tarantool/', 'type': 'dir'}
@@ -314,6 +315,7 @@ rel="1.el7.centos"/>
                         }
                     },
                     'obsoletes': {},
+                    'conflicts': {},
                     'files': []
                 }
             }
