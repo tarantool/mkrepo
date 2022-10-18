@@ -877,6 +877,33 @@ def header_to_primary(
                                'ver': provides_ver,
                                'flags': provides_flags}
 
+    # files
+
+    dirnames = header.get('DIRNAMES', [])
+    if not isinstance(dirnames, list):
+        dirnames = [dirnames]
+    basenames = header.get('BASENAMES', [])
+    if not isinstance(basenames, list):
+        basenames = [basenames]
+    dirindexes = header.get('DIRINDEXES', [])
+    if not isinstance(dirindexes, list):
+        dirindexes = [dirindexes]
+    filemodes = header.get('FILEMODES', [])
+    if not isinstance(filemodes, list):
+        filemodes = [filemodes]
+
+    # Represent integer as a C uint16 type value.
+    filemodes = [ctypes.c_uint16(filemode).value for filemode in filemodes]
+
+    files = []
+    for entry in zip(basenames, dirindexes, filemodes):
+        filename = entry[0].decode('utf-8')
+        dirname = dirnames[entry[1]].decode('utf-8')
+        if stat.S_ISDIR(entry[2]):
+            files.append({'name': dirname + filename, 'type': 'dir'})
+        elif stat.S_ISREG(entry[2]) or stat.S_ISLNK(entry[2]):
+            files.append({'name': dirname + filename, 'type': 'file'})
+
     # requires
 
     requires_dict = {}
@@ -902,12 +929,25 @@ def header_to_primary(
 
         nerv = (requires_name, requires_epoch, requires_rel, requires_ver)
 
-        requires_dict[nerv] = {'name': requires_name,
-                               'epoch': requires_epoch,
-                               'rel': requires_rel,
-                               'ver': requires_ver,
-                               'flags': requires_flags,
-                               "pre": pre}
+        nerv_entry = {'name': requires_name,
+                      'epoch': requires_epoch,
+                      'rel': requires_rel,
+                      'ver': requires_ver,
+                      'flags': requires_flags
+                      }
+
+        # Skip files which are provided.
+        if nerv in provides_dict:
+            if nerv_entry == provides_dict[nerv]:
+                continue
+
+        # Skip package primary files.
+        full_filenames = [f['name'] for f in files if f['type'] == 'file']
+        if requires_name in full_filenames and is_primary_file(requires_name):
+            continue
+
+        nerv_entry['pre'] = pre
+        requires_dict[nerv] = nerv_entry
 
     # obsoletes
 
@@ -956,32 +996,6 @@ def header_to_primary(
                                 'rel': conflicts_rel,
                                 'ver': conflicts_ver,
                                 'flags': conflicts_flags}
-
-    # files
-    dirnames = header.get('DIRNAMES', [])
-    if not isinstance(dirnames, list):
-        dirnames = [dirnames]
-    basenames = header.get('BASENAMES', [])
-    if not isinstance(basenames, list):
-        basenames = [basenames]
-    dirindexes = header.get('DIRINDEXES', [])
-    if not isinstance(dirindexes, list):
-        dirindexes = [dirindexes]
-    filemodes = header.get('FILEMODES', [])
-    if not isinstance(filemodes, list):
-        filemodes = [filemodes]
-
-    # represent integer as a C uint16 type value
-    filemodes = [ctypes.c_uint16(filemode).value for filemode in filemodes]
-
-    files = []
-    for entry in zip(basenames, dirindexes, filemodes):
-        filename = entry[0].decode('utf-8')
-        dirname = dirnames[entry[1]].decode('utf-8')
-        if stat.S_ISDIR(entry[2]):
-            files.append({'name': dirname + filename, 'type': 'dir'})
-        elif stat.S_ISREG(entry[2]) or stat.S_ISLNK(entry[2]):
-            files.append({'name': dirname + filename, 'type': 'file'})
 
     # result package
     format_dict = {'license': format_license,
