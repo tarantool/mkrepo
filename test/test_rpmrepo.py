@@ -191,12 +191,7 @@ rel="1.el7.centos"/>
 rel="1.el7.centos"/>
     </rpm:provides>
     <rpm:requires>
-      <rpm:entry name="libc.so.6()(64bit)"/>
       <rpm:entry name="libc.so.6(GLIBC_2.14)(64bit)"/>
-      <rpm:entry name="libc.so.6(GLIBC_2.2.5)(64bit)"/>
-      <rpm:entry name="libc.so.6(GLIBC_2.3)(64bit)"/>
-      <rpm:entry name="libc.so.6(GLIBC_2.3.4)(64bit)"/>
-      <rpm:entry name="libc.so.6(GLIBC_2.4)(64bit)"/>
       <rpm:entry name="libpcre.so.1()(64bit)"/>
       <rpm:entry name="pcre"/>
       <rpm:entry name="rtld(GNU_HASH)"/>
@@ -351,8 +346,6 @@ pkgid="YES">3dbbd8920df527ebb4176d531e5ec1da43cd44d1359dd69cd102a0e75131f878</ch
     </rpm:provides>
     <rpm:requires>
       <rpm:entry name="(python3.8dist(greenlet) &gt;= 0.4.17 with python3.8dist(greenlet) &lt; 2)"/>
-      <rpm:entry name="libc.so.6()(64bit)"/>
-      <rpm:entry name="libc.so.6(GLIBC_2.2.5)(64bit)"/>
       <rpm:entry name="libc.so.6(GLIBC_2.4)(64bit)"/>
       <rpm:entry name="libcares.so.2()(64bit)"/>
       <rpm:entry name="libev.so.4()(64bit)"/>

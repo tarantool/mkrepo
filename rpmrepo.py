@@ -14,6 +14,8 @@ import time
 from io import BytesIO
 from xml.sax.saxutils import escape
 
+from univers.rpm import compare_rpm_versions
+
 import rpmfile
 import storage
 
@@ -460,6 +462,97 @@ def parse_other(data):
     return packages
 
 
+def add_requires_entry(res, requires):
+    entry = ['name="%s"' % requires['name']]
+    for component in ['flags', 'epoch', 'ver', 'rel', 'pre']:
+        if requires[component] is not None:
+            entry.append('%s="%s"' % (component, requires[component]))
+
+    res += '      <rpm:entry ' + escape(' '.join(entry)) + '/>\n'
+    return res
+
+
+def compare_dependency(dep1: str, dep2: str) -> int:
+    """
+    Compares two dependencies by name
+    NOTE: The function assumes first parts must be same!
+    libc.so.6() < libc.so.6(GLIBC_2.3.4)(64 bit) < libc.so.6(GLIBC_2.4)
+    @return values:
+        0 - same
+        1 - first is bigger
+        2 - second is bigger
+       -1 - error
+    """
+    if dep1 == dep2:
+        return 0
+
+    ver1_idx = dep1.find('(')
+    ver2_idx = dep2.find('(')
+
+    # There is no '('
+    if ver1_idx == -1 and ver2_idx == -1:
+        return 0
+    if ver1_idx == -1:
+        return 2
+    if ver2_idx == -1:
+        return 1
+
+    ver1 = dep1[ver1_idx:]
+    ver2 = dep2[ver2_idx:]
+
+    ver1_e_idx = ver1.find(')')
+    ver2_e_idx = ver2.find(')')
+
+    # There is no ')'
+    if ver1_e_idx == -1 and ver2_e_idx == -1:
+        return -1
+    if ver1_e_idx == -1:
+        return 2
+    if ver2_e_idx == -1:
+        return 1
+
+    ver1_e = ver1[ver1_e_idx:]
+    ver2_e = ver2[ver2_e_idx:]
+
+    # Go to char next to '('
+    ver1 = dep1[ver1_idx + 1:]  # libc.so.6(...
+    ver2 = dep2[ver2_idx + 1:]  # verX     ^
+
+    # If parentheses have no content - libc.so.6()... == libc.so.6()...
+    if ver1 == ver1_e and ver2 == ver2_e:
+        return 0
+    if ver1 == ver1_e:
+        return 2
+    if ver2 == ver2_e:
+        return 1
+
+    # Go to first number
+    ver1_num_idx = None
+    for i in range(len(ver1)):
+        if ver1[i].isnumeric():
+            ver1_num_idx = i
+            break
+
+    ver2_num_idx = None
+    for i in range(len(ver2)):
+        if ver2[i].isnumeric():
+            ver2_num_idx = i
+            break
+
+    ver1 = ver1[ver1_num_idx:]
+    ver2 = ver2[ver2_num_idx:]
+
+    # Get version string
+    ver1 = ver1.removesuffix(ver1_e)
+    ver2 = ver2.removesuffix(ver2_e)
+
+    ret1 = compare_rpm_versions(ver1, ver2)
+    if ret1 == -1:
+        ret1 = 2
+
+    return ret1
+
+
 def dump_primary(primary):
     res = ""
 
@@ -548,14 +641,26 @@ def dump_primary(primary):
 
         res += '    <rpm:requires>\n'
 
+        libc_require_highest = None
         for key in sorted(fmt['requires'], key=sort_key):
             requires = fmt['requires'][key]
-            entry = ['name="%s"' % requires['name']]
-            for component in ['flags', 'epoch', 'ver', 'rel', 'pre']:
-                if requires[component] is not None:
-                    entry.append('%s="%s"' % (component, requires[component]))
+            requires_name = requires['name']
 
-            res += '      <rpm:entry ' + escape(' '.join(entry)) + '/>\n'
+            # libc.so.6 filtering
+            # Require name goes in alphabetical order.
+            # This means if there's a name starting with libc.so.6,
+            # consecutive names will be the same
+            if requires_name.startswith('libc.so.6'):
+                if not libc_require_highest:
+                    libc_require_highest = requires
+                else:
+                    if compare_dependency(libc_require_highest['name'], requires_name) == 2:
+                        libc_require_highest = requires
+                continue
+            if libc_require_highest:
+                res = add_requires_entry(res, libc_require_highest)
+                libc_require_highest = None
+            res = add_requires_entry(res, requires)
 
         res += '    </rpm:requires>\n'
 
