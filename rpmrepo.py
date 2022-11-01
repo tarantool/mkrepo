@@ -1192,7 +1192,7 @@ def update_repo(storage, sign, tempdir, force=False):
 def main():
     stor = storage.FilesystemStorage(sys.argv[1])
 
-    update_repo(stor)
+    update_repo(stor, sign=False, tempdir='/tmp')
 
 
 if __name__ == '__main__':
