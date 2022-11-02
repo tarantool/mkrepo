@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import copy
 import ctypes
 import datetime
 import gzip
@@ -1293,9 +1294,26 @@ def update_repo(storage, sign, tempdir, force=False):
         existing_files.add((file_path, mtime))
 
     files_to_add = existing_files - recorded_files
+    files_to_delete = recorded_files - existing_files
     # List of packages that can't be added to the index
     # (some problems encountered during processing).
     malformed_list = []
+
+    if files_to_delete:
+        stale_primary = {}
+        copied_primary = copy.deepcopy(primary)
+        for file_to_delete in files_to_delete:
+            for primary_nerv, primary_value in list(copied_primary.items())[:]:
+                if primary_value['location'] == file_to_delete[0]:
+                    stale_primary[primary_nerv] = primary_value
+                    del copied_primary[primary_nerv]
+                    break
+
+        for stale_nerv, stale_value in stale_primary.items():
+            del primary[stale_nerv]
+            del filelists[stale_nerv]
+            del others[stale_nerv]
+            print(f"Deleting: '{stale_value['location']}'")
 
     for file_to_add in files_to_add:
         file_path = file_to_add[0]
