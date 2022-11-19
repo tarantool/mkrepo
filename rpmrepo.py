@@ -862,6 +862,36 @@ def get_arch_from_header(header):
         return get_with_decode(header, 'ARCH', None)
 
 
+def _get_files(header):
+    dirnames = header.get('DIRNAMES', [])
+    if not isinstance(dirnames, list):
+        dirnames = [dirnames]
+    basenames = header.get('BASENAMES', [])
+    if not isinstance(basenames, list):
+        basenames = [basenames]
+    dirindexes = header.get('DIRINDEXES', [])
+    if not isinstance(dirindexes, list):
+        dirindexes = [dirindexes]
+    filemodes = header.get('FILEMODES', [])
+    if not isinstance(filemodes, list):
+        filemodes = [filemodes]
+
+    files = []
+
+    # Represent integer as a C uint16 type value.
+    filemodes = [ctypes.c_uint16(filemode).value for filemode in filemodes]
+
+    for entry in zip(basenames, dirindexes, filemodes):
+        filename = entry[0].decode('utf-8')
+        dirname = dirnames[entry[1]].decode('utf-8')
+        if stat.S_ISDIR(entry[2]):
+            files.append({'name': dirname + filename, 'type': 'dir'})
+        elif stat.S_ISREG(entry[2]) or stat.S_ISLNK(entry[2]):
+            files.append({'name': dirname + filename, 'type': 'file'})
+
+    return files
+
+
 def header_to_filelists(header, sha256):
     pkgid = sha256
     name = get_with_decode(header, 'NAME', None)
@@ -871,39 +901,7 @@ def header_to_filelists(header, sha256):
     ver = get_with_decode(header, 'VERSION', None)
     version = {'ver': ver, 'rel': rel, 'epoch': epoch}
 
-    dirnames = header.get('DIRNAMES', [])
-    if not isinstance(dirnames, list):
-        dirnames = [dirnames]
-    classdict = header.get('CLASSDICT', [])
-    if not isinstance(classdict, list):
-        classdict = [classdict]
-    basenames = header.get('BASENAMES', [])
-    if not isinstance(basenames, list):
-        basenames = [basenames]
-    dirindexes = header.get('DIRINDEXES', [])
-    if not isinstance(dirindexes, list):
-        dirindexes = [dirindexes]
-    fileclasses = header.get('FILECLASS', [])
-    if not isinstance(fileclasses, list):
-        fileclasses = [fileclasses]
-
-    files = []
-
-    for entry in zip(basenames, dirindexes, fileclasses):
-        filename = entry[0].decode('utf-8')
-        dirname = dirnames[entry[1]].decode('utf-8')
-
-        fileclass = classdict[entry[2]]
-
-        filetype = "file"
-
-        if fileclass == "directory":
-            filetype = "dir"
-
-        files.append({'name': dirname + filename, 'type': filetype})
-
-    for dirname in dirnames:
-        files.append({'name': dirname.decode('utf-8'), 'type': 'dir'})
+    files = _get_files(header)
 
     package = {'pkgid': pkgid, 'name': name, 'arch': arch,
                'version': version, 'files': files}
@@ -985,30 +983,7 @@ def header_to_primary(
 
     # files
 
-    dirnames = header.get('DIRNAMES', [])
-    if not isinstance(dirnames, list):
-        dirnames = [dirnames]
-    basenames = header.get('BASENAMES', [])
-    if not isinstance(basenames, list):
-        basenames = [basenames]
-    dirindexes = header.get('DIRINDEXES', [])
-    if not isinstance(dirindexes, list):
-        dirindexes = [dirindexes]
-    filemodes = header.get('FILEMODES', [])
-    if not isinstance(filemodes, list):
-        filemodes = [filemodes]
-
-    # Represent integer as a C uint16 type value.
-    filemodes = [ctypes.c_uint16(filemode).value for filemode in filemodes]
-
-    files = []
-    for entry in zip(basenames, dirindexes, filemodes):
-        filename = entry[0].decode('utf-8')
-        dirname = dirnames[entry[1]].decode('utf-8')
-        if stat.S_ISDIR(entry[2]):
-            files.append({'name': dirname + filename, 'type': 'dir'})
-        elif stat.S_ISREG(entry[2]) or stat.S_ISLNK(entry[2]):
-            files.append({'name': dirname + filename, 'type': 'file'})
+    files = _get_files(header)
 
     # requires
 
