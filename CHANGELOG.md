@@ -1,0 +1,35 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
+and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
+
+## [1.0.0] - 2022-11-23
+
+### Added
+
+- RPM:
+  * Add support for deletion of stale repo metadata.
+
+### Changed
+
+- RPM:
+  * Include 'primary' files into primary.xml.
+  * Add the `<rpm:conflicts>` section to primary.xml when it's needed.
+  * Not include 'primary' files and packages that are provided into the
+    `<rpm:requires>` section.
+  * Keep only the highest version of `libc.so.6` in the `<rpm:requires>`
+    section.
+
+### Fixed
+
+- RPM:
+  * Process `I18NSTRING` header type entries.
+  * Handle `latin-1` chars in SUMMARY and DESCRIPTION headers.
+  * Fix wrong string representation of flags in the `<rpm:requires>`
+    tag entries.
+
+### Removed
+
+- Completely drop support of Python 2.
