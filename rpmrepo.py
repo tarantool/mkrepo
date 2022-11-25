@@ -544,8 +544,8 @@ def compare_dependency(dep1: str, dep2: str) -> int:
     ver2 = ver2[ver2_num_idx:]
 
     # Get version string
-    ver1 = ver1.removesuffix(ver1_e)
-    ver2 = ver2.removesuffix(ver2_e)
+    ver1 = ver1[:-len(ver1_e)]
+    ver2 = ver2[:-len(ver2_e)]
 
     ret1 = compare_rpm_versions(ver1, ver2)
     if ret1 == -1:

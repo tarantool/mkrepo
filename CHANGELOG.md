@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Fixed
+
+- RPM:
+  * Fix Python 3.6 compatibility by replacing the `removesuffix()` method, which 
+    is available since Python 3.9.0, with another code.
+
 ### Changed
 
 - Use the `python3` shebang instead of `python` in the `mkrepo` executable path.
