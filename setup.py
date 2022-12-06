@@ -7,6 +7,8 @@ from setuptools import setup
 this_directory = path.abspath(path.dirname(__file__))
 with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
+with open(path.join(this_directory, 'requirements.txt')) as f:
+    install_requires = f.readlines()
 
 setup(
     name='mkrepo',
@@ -20,6 +22,7 @@ setup(
     url='https://github.com/tarantool/mkrepo',
     keywords=['rpm', 'deb'],
     python_requires='>=3.6.*',
+    install_requires=install_requires,
     classifiers=[
         'Environment :: Console',
         'Intended Audience :: Developers',
