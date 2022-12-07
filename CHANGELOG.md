@@ -7,7 +7,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
-## Changed
+## [1.0.2] - 2022-12-07
+
+### Changed
 
 - Bump `boto3` version from 1.4.1 to 1.17.5.
 
