@@ -13,7 +13,7 @@ with open(path.join(this_directory, 'requirements.txt')) as f:
 setup(
     name='mkrepo',
     packages=[''],
-    version='1.0.0',
+    version='1.0.1',
     description='Maintain DEB and RPM repositories on S3',
     long_description=long_description,
     long_description_content_type="text/markdown",
