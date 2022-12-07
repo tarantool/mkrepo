@@ -14,7 +14,7 @@ setup(
     name='mkrepo',
     packages=[''],
     version='1.0.0',
-    description='Maintain deb and rpm repos on s3',
+    description='Maintain DEB and RPM repositories on S3',
     long_description=long_description,
     long_description_content_type="text/markdown",
     author='Konstantin Nazarov',

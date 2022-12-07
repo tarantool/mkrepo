@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - Use the `python3` shebang instead of `python` in the `mkrepo` executable path.
+- Slightly update package description in `setup.py`.
 
 ### Added
 
