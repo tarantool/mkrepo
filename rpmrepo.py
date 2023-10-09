@@ -209,7 +209,7 @@ def dump_filelists(filelists):
 
         res += '  <version '
         components = ' '.join(['%s="%s"' % (c, ver[c])
-                               for c in ['epoch', 'ver', 'rel'] if ver[c]])
+                               for c in ['epoch', 'ver', 'rel'] if c in ver])
         res += '%s/>\n' % components
 
         for fileentry in package['files']:
@@ -572,7 +572,7 @@ def dump_primary(primary):
         ver = package['version']
         res += '  <version '
         components = ' '.join(['%s="%s"' % (c, ver[c])
-                               for c in ['epoch', 'ver', 'rel'] if ver[c]])
+                               for c in ['epoch', 'ver', 'rel'] if c in ver])
         res += '%s/>\n' % components
 
         res += '  <checksum type="sha256" pkgid="YES">%s</checksum>\n' % (
@@ -821,7 +821,7 @@ def dump_other(other):
 
         res += '  <version '
         components = ' '.join(
-            ['%s="%s"' % (c, ver[c]) for c in ['epoch', 'ver', 'rel'] if ver[c]])
+            ['%s="%s"' % (c, ver[c]) for c in ['epoch', 'ver', 'rel'] if c in ver])
         res += '%s/>\n' % components
 
         for changelog in log:
