@@ -584,7 +584,7 @@ def dump_primary(primary):
         res += '  <packager>%s</packager>\n' % escape(
             package['packager'] or '')
 
-        res += '  <url>%s</url>\n' % (package['url'] or '')
+        res += '  <url>%s</url>\n' % escape(package['url'] or '')
         res += '  <time file="%s" build="%s"/>\n' % (package['file_time'],
                                                      package['build_time'])
         res += '  <size package="%s" installed="%s" archive="%s"/>\n' % (

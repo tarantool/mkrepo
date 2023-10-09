@@ -215,7 +215,7 @@ rel="1.el7.centos"/>
                 'summary': 'foo & bar',  # should be escaped
                 'description': '<foo> and <bar>',  # should be escaped
                 'packager': '<bar>&<foo>',  # should be escaped
-                'url': 'http://www.gevent.org/',
+                'url': 'http://www.gevent.org/?section=foo&subsection=bar',  # should be escaped
                 'file_time': '1661151589',
                 'build_time': '1661158857',
                 'package_size': '1797532',
@@ -327,7 +327,7 @@ pkgid="YES">3dbbd8920df527ebb4176d531e5ec1da43cd44d1359dd69cd102a0e75131f878</ch
   <summary>foo &amp; bar</summary>
   <description>&lt;foo&gt; and &lt;bar&gt;</description>
   <packager>&lt;bar&gt;&amp;&lt;foo&gt;</packager>
-  <url>http://www.gevent.org/</url>
+  <url>http://www.gevent.org/?section=foo&amp;subsection=bar</url>
   <time file="1661151589" build="1661158857"/>
   <size package="1797532" installed="7755119" archive="7920508"/>
   <location href="Packages/python3-gevent-21.1.2-1.el7.x86_64.rpm"/>
