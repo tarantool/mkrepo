@@ -40,13 +40,14 @@ def update_repo(path, args):
         else:
             bucket, prefix = path, '.'
 
-        stor = storage.S3Storage(args.s3_endpoint,
-                                 bucket,
-                                 prefix,
-                                 args.s3_access_key_id,
-                                 args.s3_secret_access_key,
-                                 args.s3_region,
-                                 args.s3_public_read)
+        stor = storage.S3Storage(endpoint=args.s3_endpoint,
+                                 bucket=bucket,
+                                 prefix=prefix,
+                                 aws_access_key_id=args.s3_access_key_id,
+                                 aws_secret_access_key=args.s3_secret_access_key,
+                                 aws_access_token=args.s3_access_token,
+                                 aws_region=args.s3_region,
+                                 aws_public_read=args.s3_public_read)
 
     else:
         stor = storage.FilesystemStorage(path)
@@ -74,6 +75,9 @@ def main():
     parser.add_argument(
         '--s3-secret-access-key', help='secret key for connecting to S3')
 
+    parser.add_argument(
+        '--s3-access-token', help='token for connecting to S3')
+    
     parser.add_argument(
         '--s3-endpoint',
         help='region endpoint for connecting to S3 (default: s3.amazonaws.com)')
