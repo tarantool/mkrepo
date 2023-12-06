@@ -128,6 +128,7 @@ class S3Storage(Storage):
                  prefix="",
                  aws_access_key_id=None,
                  aws_secret_access_key=None,
+                 aws_access_token=None,
                  aws_region=None,
                  aws_public_read=False):
         self.bucket = bucket
@@ -137,12 +138,14 @@ class S3Storage(Storage):
         self.client = boto3.client('s3', endpoint_url=endpoint,
                                    aws_access_key_id=aws_access_key_id,
                                    aws_secret_access_key=aws_secret_access_key,
+                                   aws_session_token=aws_access_token,
                                    region_name=aws_region)
         self.resource = boto3.resource(
             's3',
             endpoint_url=endpoint,
             aws_access_key_id=aws_access_key_id,
             aws_secret_access_key=aws_secret_access_key,
+            aws_session_token=aws_access_token,
             region_name=aws_region)
 
     def read_file(self, key):

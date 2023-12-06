@@ -45,6 +45,7 @@ So you may skip them in command line invocation in case you have aws config.
             [--temp-dir TEMP_DIR]
             [--s3-access-key-id S3_ACCESS_KEY_ID]
             [--s3-secret-access-key S3_SECRET_ACCESS_KEY]
+            [--s3-access-token S3_ACCESS_TOKEN]
             [--s3-endpoint S3_ENDPOINT]
             [--s3-region S3_REGION]
             [--s3-public-read]
@@ -56,6 +57,7 @@ So you may skip them in command line invocation in case you have aws config.
 * `--temp-dir` - /(optional)/directory used to store temporary artifacts (default is .mkrepo)
 * `--s3-access-key-id` - /(optional)/ specify S3 access key ID
 * `--s3-secret-access-key` - /(optional)/ specify S3 secret key
+* `--s3-access-token` - /(optional)/ specify role token
 * `--s3-endpoint` - /(optional)/ specify S3 server URI
 * `--s3-region` - /(optional)/ specify S3 region (default is us-east-1)
 * `--s3-public-read` - /(optional)/ set read-only permission on files uploaded
